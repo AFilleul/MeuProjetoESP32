@@ -1,0 +1,393 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sítio Online - Monitoramento Agrícola ESP32</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div id="app" class="app-container">
+        <!-- Camada de Fundo Dinâmico (Menu Principal) -->
+        <div id="dynamic-bg-container" class="bg-container">
+            <div id="bg-slide-1" class="bg-slide bg-active" style="background-image: url('assets/sensor_solo.jpg');"></div>
+            <div id="bg-slide-2" class="bg-slide" style="background-image: url('assets/sensor_mhrd.jpg');"></div>
+            <div class="bg-gradient-overlay"></div>
+        </div>
+
+        <!-- Camada de Fundo com Opacidade Exata de 14% (Status e Configurações) -->
+        <div id="subpage-bg-layer" class="subpage-bg-overlay"></div>
+
+        <!-- Barra Superior com Indicador de Conexão com o ESP32 -->
+        <header class="top-bar">
+            <div class="api-status-badge" id="api-status-badge">
+                <span class="status-dot online"></span>
+                <span id="api-status-text">ESP32 REST API: Conectado (192.168.4.1)</span>
+            </div>
+            <div class="queue-status-badge" id="queue-status-badge" title="Alterações pendentes para nós dormindo">
+                <span class="queue-icon">⏳</span>
+                <span id="queue-count-text">0 comandos na fila offline</span>
+            </div>
+            <div class="top-controls">
+                <button class="top-btn" id="btn-toggle-keypad" title="Mostrar/Ocultar Teclado 4x4 Virtual">⌨️ Teclado 4x4</button>
+                <button class="top-btn" id="btn-toggle-api-modal" title="Configurar IP do ESP32">⚙️ Conexão API</button>
+            </div>
+        </header>
+
+        <!-- Painel Principal de Telas -->
+        <main class="screens-viewport">
+            <!-- TELA 1: MENU PRINCIPAL (Slides 1 e 2) -->
+            <section id="screen-main-menu" class="screen-view active">
+                <div class="brand-header">
+                    <h1 class="main-title">SÍTIO <span class="highlight-cyan">ONLINE</span></h1>
+                </div>
+
+                <div class="menu-options-container">
+                    <div class="menu-option active-target" data-action="go-status" id="menu-opt-status">
+                        <span class="cursor-indicator">&gt;</span>
+                        <span class="bullet">•</span>
+                        <span class="opt-label">Status</span>
+                    </div>
+                    <div class="menu-option" data-action="go-config" id="menu-opt-config">
+                        <span class="cursor-indicator">&gt;</span>
+                        <span class="bullet">•</span>
+                        <span class="opt-label">Configurar</span>
+                    </div>
+                </div>
+
+                <div class="notifications-card" id="notifications-box">
+                    <h3 class="notifications-title">Notificações:</h3>
+                    <div class="notifications-list" id="notifications-content">
+                        <p class="notif-item">O ESP 3 está online!</p>
+                        <p class="notif-item">O ESP 9 está online!</p>
+                    </div>
+                </div>
+
+                <footer class="screen-footer-legend">
+                    <div class="legend-col">
+                        <span>Aperte <strong>"A"</strong> ou <strong>"0"</strong> para selecionar</span>
+                        <span>Aperte <strong>"B"</strong> para subir</span>
+                        <span>Aperte <strong>"C"</strong> para descer</span>
+                    </div>
+                </footer>
+            </section>
+
+            <!-- TELA 2: STATUS - PÁGINA 1 (Slide 3) -->
+            <section id="screen-status-p1" class="screen-view subpage-view">
+                <div class="subpage-header">
+                    <h2 class="subpage-title">STATUS</h2>
+                    <span class="page-indicator">Página 1 de 2</span>
+                </div>
+
+                <div class="table-container" id="status-table-p1-container">
+                    <table class="data-table" id="table-status-p1">
+                        <thead>
+                            <tr>
+                                <th>Nó</th>
+                                <th>Conectividade</th>
+                                <th>Modo atual</th>
+                                <th>Última atualização</th>
+                                <th>Dado do sensor</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-status-p1">
+                            <!-- Preenchido dinamicamente via JS -->
+                        </tbody>
+                    </table>
+                    <div class="empty-state-message" id="empty-status-message">
+                        Nenhum ESP Online ou Configurado
+                    </div>
+                </div>
+
+                <footer class="subpage-footer-legend">
+                    <div class="footer-action left" id="btn-status-return">
+                        <span class="key-tag">"D"</span> RETORNAR
+                        <span class="arrow-sym">&lt;</span>
+                    </div>
+                    <div class="footer-action center" id="btn-status-scroll">
+                        <span class="key-tag">"C"</span> DESCER
+                        <span class="arrow-sym">v</span>
+                    </div>
+                    <div class="footer-action right" id="btn-status-next-page">
+                        <span class="key-tag">"B"</span> PRÓXIMA PÁGINA
+                        <span class="arrow-sym">&gt;</span>
+                    </div>
+                </footer>
+            </section>
+
+            <!-- TELA 3: STATUS - PÁGINA 2 (Slide 4) -->
+            <section id="screen-status-p2" class="screen-view subpage-view">
+                <div class="subpage-header">
+                    <h2 class="subpage-title">STATUS</h2>
+                    <span class="page-indicator">Página 2 de 2</span>
+                </div>
+
+                <div class="table-container">
+                    <table class="data-table" id="table-status-p2">
+                        <thead>
+                            <tr>
+                                <th>Nó</th>
+                                <th>Próxima atualização</th>
+                                <th>Fila Offline (Deep Sleep)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-status-p2">
+                            <!-- Preenchido dinamicamente via JS -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <footer class="subpage-footer-legend">
+                    <div class="footer-action left" id="btn-status-prev-page">
+                        <span class="key-tag">"D"</span> PÁGINA ANTERIOR
+                        <span class="arrow-sym">&lt;</span>
+                    </div>
+                    <div class="footer-action center">
+                        <span class="key-tag">"C"</span> DESCER
+                        <span class="arrow-sym">v</span>
+                    </div>
+                </footer>
+            </section>
+
+            <!-- TELA 4: CONFIGURAÇÕES - LISTA DE ESPs (Slides 5 e 6) -->
+            <section id="screen-config-list" class="screen-view subpage-view">
+                <div class="subpage-header">
+                    <h2 class="subpage-title">CONFIGURAÇÕES</h2>
+                </div>
+
+                <div class="config-selection-area">
+                    <div class="config-instruction-banner">
+                        <span id="config-instruction-text">1 A 7 PARA SELECIONAR</span>
+                        <small class="instruction-sub">ou use as setas e "0" para confirmar</small>
+                    </div>
+
+                    <div class="esp-list-cards" id="esp-config-list-container">
+                        <!-- Itens dos ESPs gerados dinamicamente -->
+                    </div>
+
+                    <div class="empty-state-message" id="empty-config-message">
+                        Nenhum ESP conectado
+                    </div>
+                </div>
+
+                <footer class="subpage-footer-legend">
+                    <div class="footer-action left" id="btn-config-list-return">
+                        <span class="key-tag">"D"</span> RETORNAR
+                        <span class="arrow-sym">&lt;</span>
+                    </div>
+                    <div class="footer-action center">
+                        <span class="key-tag">"C"</span> DESCER
+                        <span class="arrow-sym">v</span>
+                    </div>
+                </footer>
+            </section>
+
+            <!-- TELA 5: CONFIGURAÇÕES DO ESP SELECIONADO (Slide 7) -->
+            <section id="screen-esp-options" class="screen-view subpage-view">
+                <div class="subpage-header">
+                    <h2 class="subpage-title">CONFIGURAÇÕES</h2>
+                    <h3 class="subpage-subtitle" id="selected-esp-title">ESP 1</h3>
+                </div>
+
+                <div class="esp-suboptions-list">
+                    <div class="esp-subopt active-target" data-opt="rename" id="subopt-rename">
+                        <span class="cursor-indicator">&gt;</span>
+                        <span class="subopt-text">Renomear</span>
+                    </div>
+                    <div class="esp-subopt" data-opt="interval" id="subopt-interval">
+                        <span class="cursor-indicator">&gt;</span>
+                        <span class="subopt-text">Definir intervalo de leitura</span>
+                        <span class="subopt-value" id="val-preview-interval">(atual: 60s)</span>
+                    </div>
+                    <div class="esp-subopt" data-opt="unit" id="subopt-unit">
+                        <span class="cursor-indicator">&gt;</span>
+                        <span class="subopt-text">Definir unidade de medida</span>
+                        <span class="subopt-value" id="val-preview-unit">(atual: % Umidade)</span>
+                    </div>
+                    <div class="esp-subopt" data-opt="mode" id="subopt-mode">
+                        <span class="cursor-indicator">&gt;</span>
+                        <span class="subopt-text">Definir modo</span>
+                        <span class="subopt-value" id="val-preview-mode">(atual: ONLINE)</span>
+                    </div>
+                </div>
+
+                <div class="sync-status-box" id="esp-sync-badge">
+                    <span class="sync-icon">⚡</span>
+                    <span id="esp-sync-status-text">Status: Conectado e Sincronizado</span>
+                </div>
+
+                <footer class="subpage-footer-legend">
+                    <div class="footer-action left" id="btn-esp-options-return">
+                        <span class="key-tag">"D"</span> RETORNAR
+                        <span class="arrow-sym">&lt;</span>
+                    </div>
+                    <div class="footer-action-inline">
+                        <span>Aperte <strong>"A"</strong> ou <strong>"0"</strong> para selecionar</span>
+                        <span>Aperte <strong>"B"</strong> para subir</span>
+                        <span>Aperte <strong>"C"</strong> para descer</span>
+                    </div>
+                </footer>
+            </section>
+
+            <!-- TELA 6: TECLADO VIRTUAL DE DIGITAÇÃO (Slide 8) -->
+            <section id="screen-virtual-keyboard" class="screen-view subpage-view">
+                <div class="vk-header">
+                    <h3 class="vk-field-label" id="vk-field-label">(NOME SENDO DIGITADO)</h3>
+                    <div class="vk-display-box">
+                        <span id="vk-text-preview" class="vk-text-content">MEU_ESP_1</span>
+                        <span class="vk-caret"></span>
+                    </div>
+                    <div class="vk-slots-decor" id="vk-slots-decor">_ _ _ _ _ _ _ _ _ _</div>
+                </div>
+
+                <div class="virtual-keyboard-grid" id="vk-grid">
+                    <!-- Gerado dinamicamente via JS com linha de números, QWERTYUIOP, etc. -->
+                </div>
+
+                <div class="vk-dpad-guide">
+                    <div class="dpad-up">▲ "A"</div>
+                    <div class="dpad-mid">
+                        <span>◄ "B"</span>
+                        <span class="dpad-center">[ 0 ] SELECIONAR</span>
+                        <span>"C" ►</span>
+                    </div>
+                    <div class="dpad-down">▼ "D"</div>
+                </div>
+
+                <footer class="vk-footer-controls">
+                    <button class="vk-btn-cancel" id="btn-vk-cancel">
+                        <span class="key-badge">"*"</span> CANCELAR
+                    </button>
+                    <button class="vk-btn-save" id="btn-vk-save">
+                        <span class="key-badge">"#"</span> SALVAR
+                    </button>
+                </footer>
+            </section>
+
+            <!-- TELA 7: SELETOR DE MODO DE ENERGIA -->
+            <section id="screen-mode-selector" class="screen-view subpage-view">
+                <div class="subpage-header">
+                    <h2 class="subpage-title">DEFINIR MODO DE ENERGIA</h2>
+                    <h3 class="subpage-subtitle" id="mode-esp-title">ESP 1</h3>
+                </div>
+
+                <div class="mode-options-container" id="mode-options-list">
+                    <div class="mode-card active-target" data-mode="ONLINE" id="mode-opt-online">
+                        <span class="cursor-indicator">&gt;</span>
+                        <div class="mode-info">
+                            <h4>ONLINE (Contínuo)</h4>
+                            <p>ESP32 sempre ativo, responde imediatamente a requisições e comandos.</p>
+                        </div>
+                    </div>
+                    <div class="mode-card" data-mode="LIGHT SLEEP" id="mode-opt-light">
+                        <span class="cursor-indicator">&gt;</span>
+                        <div class="mode-info">
+                            <h4>LIGHT SLEEP</h4>
+                            <p>Economia moderada. Acorda periodicamente ou via interrupção de pino.</p>
+                        </div>
+                    </div>
+                    <div class="mode-card" data-mode="DEEP SLEEP" id="mode-opt-deep">
+                        <span class="cursor-indicator">&gt;</span>
+                        <div class="mode-info">
+                            <h4>DEEP SLEEP</h4>
+                            <p>Máxima economia de bateria. Alterações ficarão na fila e serão aplicadas ao acordar.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <footer class="subpage-footer-legend">
+                    <div class="footer-action left" id="btn-mode-return">
+                        <span class="key-tag">"D"</span> RETORNAR
+                        <span class="arrow-sym">&lt;</span>
+                    </div>
+                    <div class="footer-action center">
+                        <span>Aperte <strong>"0"</strong> para confirmar o modo</span>
+                    </div>
+                </footer>
+            </section>
+        </main>
+
+        <!-- WIDGET LATERAL: SIMULADOR DE TECLADO MATRICIAL 4X4 FÍSICO -->
+        <aside class="keypad-sim-panel" id="keypad-sim-panel">
+            <div class="keypad-sim-header">
+                <div class="keypad-title">
+                    <span class="keypad-icon">⌨️</span>
+                    <span>Teclado Matricial 4x4</span>
+                </div>
+                <button class="keypad-close-btn" id="btn-close-keypad">✕</button>
+            </div>
+            <p class="keypad-sim-hint">Simula o teclado de membrana conectado ao ESP32. Clique nas teclas ou digite no teclado do PC.</p>
+            
+            <div class="membrane-keypad-grid">
+                <button class="kpad-key" data-key="1">1</button>
+                <button class="kpad-key" data-key="2">2</button>
+                <button class="kpad-key" data-key="3">3</button>
+                <button class="kpad-key kpad-func" data-key="A" title="A: Selecionar / Cima">A</button>
+
+                <button class="kpad-key" data-key="4">4</button>
+                <button class="kpad-key" data-key="5">5</button>
+                <button class="kpad-key" data-key="6">6</button>
+                <button class="kpad-key kpad-func" data-key="B" title="B: Subir / Próxima Página / Esquerda">B</button>
+
+                <button class="kpad-key" data-key="7">7</button>
+                <button class="kpad-key" data-key="8">8</button>
+                <button class="kpad-key" data-key="9">9</button>
+                <button class="kpad-key kpad-func" data-key="C" title="C: Descer / Direita">C</button>
+
+                <button class="kpad-key kpad-danger" data-key="*" title="*: Cancelar">*</button>
+                <button class="kpad-key kpad-select" data-key="0" title="0: Selecionar / Confirmar">0</button>
+                <button class="kpad-key kpad-success" data-key="#" title="#: Salvar">#</button>
+                <button class="kpad-key kpad-func" data-key="D" title="D: Retornar / Baixo">D</button>
+            </div>
+
+            <div class="keypad-last-pressed">
+                Última tecla: <strong id="last-key-display">-</strong>
+            </div>
+        </aside>
+
+        <!-- MODAL DE CONFIGURAÇÃO DA API REST DO ESP32 -->
+        <div class="modal-backdrop" id="modal-api-config">
+            <div class="modal-dialog">
+                <div class="modal-header">
+                    <h3>Configurações de Conexão com ESP32</h3>
+                    <button class="modal-close-btn" id="btn-close-modal">✕</button>
+                </div>
+                <div class="modal-body">
+                    <label for="input-esp-ip">Endereço IP / URL do ESP32 REST Server:</label>
+                    <input type="text" id="input-esp-ip" value="http://192.168.4.1" placeholder="http://192.168.4.1 ou http://192.168.1.50">
+
+                    <label for="input-sync-interval">Intervalo de atualização (Polling):</label>
+                    <select id="input-sync-interval">
+                        <option value="2000">2 segundos (Rápido)</option>
+                        <option value="4000" selected>4 segundos (Padrão)</option>
+                        <option value="8000">8 segundos (Econômico)</option>
+                    </select>
+
+                    <div class="mode-toggle-group">
+                        <label>
+                            <input type="checkbox" id="chk-simulator-mode" checked>
+                            Modo Simulador Offline Ativo (Permite testar sem ESP32 físico ligado)
+                        </label>
+                    </div>
+
+                    <div class="pending-queue-summary">
+                        <h4>Fila de Comandos Offline (Deep Sleep):</h4>
+                        <div id="modal-queue-items" class="modal-queue-list">
+                            <p class="empty-queue-msg">Nenhum comando na fila no momento.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="modal-btn secondary" id="btn-modal-cancel">Fechar</button>
+                    <button class="modal-btn primary" id="btn-modal-save">Salvar e Conectar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

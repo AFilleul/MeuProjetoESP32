@@ -5,3 +5,6 @@ build/
 *.hex
 *.map
 
+# Arquivos com senhas e dados confidenciais
+secrets.h
+config.h

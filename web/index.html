@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
@@ -79,7 +79,10 @@
             <section id="screen-status-p1" class="screen-view subpage-view">
                 <div class="subpage-header">
                     <h2 class="subpage-title">STATUS</h2>
-                    <span class="page-indicator">Página 1 de 2</span>
+                    <div class="status-pagination-indicators">
+                        <span class="page-indicator" id="status-col-indicator">Colunas: 1/2</span>
+                        <span class="row-page-indicator" id="status-row-indicator">Linhas: 1/2 (Nós 1 a 5 de 10)</span>
+                    </div>
                 </div>
 
                 <div class="table-container" id="status-table-p1-container">
@@ -89,6 +92,7 @@
                                 <th>Nó</th>
                                 <th>Conectividade</th>
                                 <th>Modo atual</th>
+                                <th>Estimativa de Bateria</th>
                                 <th>Última atualização</th>
                                 <th>Dado do sensor</th>
                             </tr>
@@ -108,11 +112,11 @@
                         <span class="arrow-sym">&lt;</span>
                     </div>
                     <div class="footer-action center" id="btn-status-scroll">
-                        <span class="key-tag">"C"</span> DESCER
+                        <span class="key-tag">"C"</span> DESCER (MAIS ESPs)
                         <span class="arrow-sym">v</span>
                     </div>
                     <div class="footer-action right" id="btn-status-next-page">
-                        <span class="key-tag">"B"</span> PRÓXIMA PÁGINA
+                        <span class="key-tag">"B"</span> PRÓXIMA PÁGINA (COLUNAS)
                         <span class="arrow-sym">&gt;</span>
                     </div>
                 </footer>
@@ -122,7 +126,10 @@
             <section id="screen-status-p2" class="screen-view subpage-view">
                 <div class="subpage-header">
                     <h2 class="subpage-title">STATUS</h2>
-                    <span class="page-indicator">Página 2 de 2</span>
+                    <div class="status-pagination-indicators">
+                        <span class="page-indicator">Colunas: 2/2</span>
+                        <span class="row-page-indicator" id="status-row-indicator-p2">Linhas: 1/2 (Nós 1 a 5 de 10)</span>
+                    </div>
                 </div>
 
                 <div class="table-container">
@@ -131,6 +138,8 @@
                             <tr>
                                 <th>Nó</th>
                                 <th>Próxima atualização</th>
+                                <th>Consumo Médio (Estimado)</th>
+                                <th>Tempo Total em Operação</th>
                                 <th>Fila Offline (Deep Sleep)</th>
                             </tr>
                         </thead>
@@ -142,11 +151,11 @@
 
                 <footer class="subpage-footer-legend">
                     <div class="footer-action left" id="btn-status-prev-page">
-                        <span class="key-tag">"D"</span> PÁGINA ANTERIOR
+                        <span class="key-tag">"D"</span> PÁGINA ANTERIOR (COLUNAS)
                         <span class="arrow-sym">&lt;</span>
                     </div>
-                    <div class="footer-action center">
-                        <span class="key-tag">"C"</span> DESCER
+                    <div class="footer-action center" id="btn-status-scroll-p2">
+                        <span class="key-tag">"C"</span> DESCER (MAIS ESPs)
                         <span class="arrow-sym">v</span>
                     </div>
                 </footer>

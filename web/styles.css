@@ -1,4 +1,4 @@
-﻿/* ==========================================================================
+/* ==========================================================================
    SÍTIO ONLINE - SISTEMA DE MONITORAMENTO AGRÍCOLA ESP32
    ESTILOS CSS MODERNOS COM GRADIENTES E CONTROLE MATRICIAL 4X4
    ========================================================================== */
@@ -359,10 +359,27 @@ body, html {
     letter-spacing: 1px;
 }
 
-.page-indicator {
-    font-size: 1rem;
-    font-weight: 600;
-    color: #64748b;
+.status-pagination-indicators {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.page-indicator, .row-page-indicator {
+    font-size: 0.95rem;
+    font-weight: 700;
+    padding: 4px 12px;
+    border-radius: 6px;
+    background: #e2e8f0;
+    color: #334155;
+    font-family: var(--font-heading);
+    letter-spacing: 0.5px;
+}
+
+.row-page-indicator {
+    background: #e0f2fe;
+    color: #0369a1;
+    border: 1px solid #bae6fd;
 }
 
 .table-container {
@@ -427,6 +444,48 @@ body, html {
 .badge-status.online {
     background: #dcfce7;
     color: #15803d;
+}
+
+/* Badges e Célula de Estimativa de Bateria */
+.battery-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.battery-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 6px;
+    width: fit-content;
+}
+
+.battery-badge.high {
+    background: #dcfce7;
+    color: #15803d;
+    border: 1px solid #bbf7d0;
+}
+
+.battery-badge.medium {
+    background: #fef3c7;
+    color: #b45309;
+    border: 1px solid #fde68a;
+}
+
+.battery-badge.low {
+    background: #fee2e2;
+    color: #b91c1c;
+    border: 1px solid #fecaca;
+}
+
+.battery-subtext {
+    font-size: 0.8rem;
+    color: #64748b;
+    font-weight: 500;
 }
 
 .badge-status.dormindo {

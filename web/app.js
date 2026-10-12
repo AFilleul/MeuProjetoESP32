@@ -12,6 +12,10 @@ const AppState = {
     screenHistory: [],
     focusIndex: 0,
     selectedEspId: null,
+
+    // Paginação Vertical de Linhas (Nós ESP32) nas telas de Status
+    statusRowPage: 0,
+    statusRowsPerPage: 5,
     
     // Configurações da API REST do ESP32
     api: {
@@ -45,7 +49,7 @@ const AppState = {
     // Fila de Alterações Offline (Deep/Light Sleep)
     pendingQueue: [],
 
-    // Base de Dados dos Nós ESP32 Conectados
+    // Base de Dados dos Nós ESP32 Conectados (10 nós para teste de paginação vertical)
     esps: [
         {
             id: 'esp-1',
@@ -58,7 +62,9 @@ const AppState = {
             sensorValue: '62% (Umidade Solo)',
             interval: '60 min',
             unit: '% Umidade',
-            battery: '94%'
+            batteryPct: 94,
+            uptimeHours: 320,
+            batteryCapacityMah: 2500
         },
         {
             id: 'esp-2',
@@ -71,7 +77,9 @@ const AppState = {
             sensorValue: '24.8 °C (Temperatura)',
             interval: '30 min',
             unit: '°C',
-            battery: '88%'
+            batteryPct: 88,
+            uptimeHours: 195,
+            batteryCapacityMah: 2500
         },
         {
             id: 'esp-3',
@@ -84,7 +92,9 @@ const AppState = {
             sensorValue: 'Seco (Sensor MH-RD)',
             interval: '1 min',
             unit: 'Estado Chuva',
-            battery: '100%'
+            batteryPct: 45,
+            uptimeHours: 65,
+            batteryCapacityMah: 2500
         },
         {
             id: 'esp-4',
@@ -97,7 +107,24 @@ const AppState = {
             sensorValue: '480 ADC (Solo)',
             interval: '120 min',
             unit: 'ADC',
-            battery: '76%'
+            batteryPct: 76,
+            uptimeHours: 540,
+            batteryCapacityMah: 2500
+        },
+        {
+            id: 'esp-5',
+            num: 5,
+            name: 'ESP 5',
+            connectivity: 'DORMINDO',
+            mode: 'LIGHT SLEEP',
+            lastUpdate: '14:05 - 11/10/2026',
+            nextUpdate: '14:20 - 11/10/2026',
+            sensorValue: '12 km/h (Anemômetro)',
+            interval: '15 min',
+            unit: 'km/h',
+            batteryPct: 62,
+            uptimeHours: 210,
+            batteryCapacityMah: 2500
         },
         {
             id: 'esp-6',
@@ -110,7 +137,9 @@ const AppState = {
             sensorValue: '75% (Umidade Solo)',
             interval: '5 min',
             unit: '% Umidade',
-            battery: '82%'
+            batteryPct: 82,
+            uptimeHours: 90,
+            batteryCapacityMah: 2500
         },
         {
             id: 'esp-7',
@@ -123,7 +152,54 @@ const AppState = {
             sensorValue: 'Chovendo (MH-RD)',
             interval: '30 min',
             unit: 'Estado Chuva',
-            battery: '91%'
+            batteryPct: 91,
+            uptimeHours: 310,
+            batteryCapacityMah: 2500
+        },
+        {
+            id: 'esp-8',
+            num: 8,
+            name: 'ESP 8',
+            connectivity: 'DORMINDO',
+            mode: 'DEEP SLEEP',
+            lastUpdate: '13:00 - 11/10/2026',
+            nextUpdate: '14:30 - 11/10/2026',
+            sensorValue: '1013 hPa (Barômetro)',
+            interval: '90 min',
+            unit: 'hPa',
+            batteryPct: 85,
+            uptimeHours: 420,
+            batteryCapacityMah: 2500
+        },
+        {
+            id: 'esp-9',
+            num: 9,
+            name: 'ESP 9',
+            connectivity: 'ONLINE',
+            mode: 'DEEP SLEEP',
+            lastUpdate: '14:28 - 11/10/2026',
+            nextUpdate: '15:28 - 11/10/2026',
+            sensorValue: '58% (Umidade Solo)',
+            interval: '60 min',
+            unit: '% Umidade',
+            batteryPct: 19,
+            uptimeHours: 850,
+            batteryCapacityMah: 2500
+        },
+        {
+            id: 'esp-10',
+            num: 10,
+            name: 'ESP 10',
+            connectivity: 'DORMINDO',
+            mode: 'LIGHT SLEEP',
+            lastUpdate: '14:22 - 11/10/2026',
+            nextUpdate: '14:42 - 11/10/2026',
+            sensorValue: '420 W/m² (Radiação UV)',
+            interval: '20 min',
+            unit: 'W/m²',
+            batteryPct: 73,
+            uptimeHours: 160,
+            batteryCapacityMah: 2500
         }
     ],
 
@@ -205,7 +281,87 @@ function applySubpageBackdropOpacity() {
 }
 
 // ============================================================================
-// 5. ATUALIZAÇÃO DA INTERFACE (RENDERIZAÇÃO)
+// 5. CÁLCULO E ESTIMATIVA DE BATERIA DO ESP32
+// ============================================================================
+
+/**
+ * Calcula a autonomia estimada e consumo médio do ESP32 com base:
+ * - Capacidade nominal da bateria (padrão 18650 Li-ion 2500 mAh)
+ * - Porcentagem de carga atual (batteryPct)
+ * - Modo operacional (ONLINE, LIGHT SLEEP, DEEP SLEEP)
+ * - Ciclo de atividade e intervalo de medição/envio REST
+ * - Tempo total acumulado em operação (uptimeHours)
+ */
+function calculateBatteryEstimate(esp) {
+    const capacityTotal = esp.batteryCapacityMah || 2500; // mAh
+    const pct = typeof esp.batteryPct === 'number' ? esp.batteryPct : 80;
+    const remainingMah = (pct / 100) * capacityTotal;
+
+    // Extrai o intervalo em minutos
+    let intervalMin = 60;
+    if (esp.interval) {
+        const match = esp.interval.match(/(\d+)/);
+        if (match) intervalMin = Math.max(1, parseInt(match[1], 10));
+    }
+    const cycleSec = intervalMin * 60;
+    const activeSec = 3.0; // segundos acordado (leitura ADC + WiFi TX/RX REST)
+    const activeMa = 180.0; // consumo em transmissão ativa com WiFi do ESP32
+
+    let avgMa = 180.0;
+    const mode = (esp.mode || 'ONLINE').toUpperCase();
+
+    if (mode === 'DEEP SLEEP') {
+        const sleepMa = 0.015; // 15 uA no Deep Sleep (RTC timer + ULP)
+        avgMa = ((activeSec * activeMa) + Math.max(0, cycleSec - activeSec) * sleepMa) / cycleSec;
+    } else if (mode === 'LIGHT SLEEP') {
+        const sleepMa = 1.5; // 1.5 mA no Light Sleep (RAM e periféricos retidos)
+        avgMa = ((activeSec * activeMa) + Math.max(0, cycleSec - activeSec) * sleepMa) / cycleSec;
+    } else {
+        avgMa = 180.0; // ONLINE contínuo (rádio e CPU ligados)
+    }
+
+    const remainingHours = avgMa > 0 ? (remainingMah / avgMa) : 0;
+
+    let remainingFormatted = '';
+    if (remainingHours < 1) {
+        remainingFormatted = `~${Math.max(1, Math.round(remainingHours * 60))} min`;
+    } else if (remainingHours < 48) {
+        remainingFormatted = `~${Math.round(remainingHours)}h`;
+    } else if (remainingHours < 720) {
+        const days = (remainingHours / 24).toFixed(1);
+        remainingFormatted = `~${days} dias`;
+    } else {
+        const months = (remainingHours / 720).toFixed(1);
+        remainingFormatted = `~${months} meses`;
+    }
+
+    const uptimeH = esp.uptimeHours || 120;
+    let uptimeFormatted = '';
+    if (uptimeH < 24) {
+        uptimeFormatted = `${uptimeH}h`;
+    } else {
+        const d = Math.floor(uptimeH / 24);
+        const h = uptimeH % 24;
+        uptimeFormatted = `${d}d ${h}h`;
+    }
+
+    let badgeClass = 'high';
+    if (pct < 25) badgeClass = 'low';
+    else if (pct < 60) badgeClass = 'medium';
+
+    return {
+        pct,
+        remainingHours,
+        remainingFormatted,
+        uptimeHours: uptimeH,
+        uptimeFormatted,
+        avgMa: avgMa < 1 ? avgMa.toFixed(3) : avgMa.toFixed(1),
+        badgeClass
+    };
+}
+
+// ============================================================================
+// 6. ATUALIZAÇÃO DA INTERFACE (RENDERIZAÇÃO)
 // ============================================================================
 
 function updateUI() {
@@ -320,6 +476,7 @@ function renderStatusP1() {
     const tbody = document.getElementById('tbody-status-p1');
     const emptyMsg = document.getElementById('empty-status-message');
     const table = document.getElementById('table-status-p1');
+    const rowIndicator = document.getElementById('status-row-indicator');
 
     tbody.innerHTML = '';
 
@@ -329,24 +486,47 @@ function renderStatusP1() {
         table.style.display = 'none';
         emptyMsg.classList.add('visible');
         emptyMsg.textContent = 'Nenhum ESP Online ou Configurado';
+        if (rowIndicator) rowIndicator.textContent = 'Linhas: 0/0';
         return;
     }
 
     table.style.display = 'table';
     emptyMsg.classList.remove('visible');
 
-    AppState.esps.forEach((esp, idx) => {
+    const perPage = AppState.statusRowsPerPage || 5;
+    const totalRowPages = Math.max(1, Math.ceil(AppState.esps.length / perPage));
+    if (AppState.statusRowPage >= totalRowPages) {
+        AppState.statusRowPage = 0;
+    }
+
+    const startIdx = AppState.statusRowPage * perPage;
+    const endIdx = Math.min(startIdx + perPage, AppState.esps.length);
+    const visibleEsps = AppState.esps.slice(startIdx, endIdx);
+
+    if (rowIndicator) {
+        rowIndicator.textContent = `Linhas: ${AppState.statusRowPage + 1}/${totalRowPages} (Nós ${startIdx + 1} a ${endIdx} de ${AppState.esps.length})`;
+    }
+
+    visibleEsps.forEach((esp, idx) => {
+        const globalIdx = startIdx + idx;
         const tr = document.createElement('tr');
-        if (idx === AppState.focusIndex) {
+        if (globalIdx === AppState.focusIndex) {
             tr.classList.add('selected-row');
         }
 
         const badgeClass = esp.connectivity.toLowerCase();
+        const est = calculateBatteryEstimate(esp);
 
         tr.innerHTML = `
             <td><strong>${esp.name}:</strong></td>
             <td><span class="badge-status ${badgeClass}">${esp.connectivity}</span></td>
             <td>${esp.mode}</td>
+            <td>
+                <div class="battery-cell">
+                    <span class="battery-badge ${est.badgeClass}">🔋 ${est.pct}% (${est.remainingFormatted})</span>
+                    <span class="battery-subtext">${est.avgMa} mA méd. • ${est.uptimeFormatted} ativo</span>
+                </div>
+            </td>
             <td>${esp.lastUpdate}</td>
             <td><strong>${esp.sensorValue}</strong></td>
         `;
@@ -359,22 +539,41 @@ function renderStatusP1() {
 // ----------------------------------------------------------------------------
 function renderStatusP2() {
     const tbody = document.getElementById('tbody-status-p2');
+    const rowIndicatorP2 = document.getElementById('status-row-indicator-p2');
     tbody.innerHTML = '';
 
-    AppState.esps.forEach((esp, idx) => {
+    const perPage = AppState.statusRowsPerPage || 5;
+    const totalRowPages = Math.max(1, Math.ceil(AppState.esps.length / perPage));
+    if (AppState.statusRowPage >= totalRowPages) {
+        AppState.statusRowPage = 0;
+    }
+
+    const startIdx = AppState.statusRowPage * perPage;
+    const endIdx = Math.min(startIdx + perPage, AppState.esps.length);
+    const visibleEsps = AppState.esps.slice(startIdx, endIdx);
+
+    if (rowIndicatorP2) {
+        rowIndicatorP2.textContent = `Linhas: ${AppState.statusRowPage + 1}/${totalRowPages} (Nós ${startIdx + 1} a ${endIdx} de ${AppState.esps.length})`;
+    }
+
+    visibleEsps.forEach((esp, idx) => {
+        const globalIdx = startIdx + idx;
         const tr = document.createElement('tr');
-        if (idx === AppState.focusIndex) {
+        if (globalIdx === AppState.focusIndex) {
             tr.classList.add('selected-row');
         }
 
+        const est = calculateBatteryEstimate(esp);
         const pendingForEsp = AppState.pendingQueue.filter(q => q.espId === esp.id);
         const queueHtml = pendingForEsp.length > 0 
-            ? `<span style="color:#b45309; font-weight:700;">⏳ ${pendingForEsp.length} comando(s) aguardando despertar</span>`
-            : `<span style="color:#15803d;">✓ Sincronizado</span>`;
+            ? `<span style="color:#f59e0b; font-weight:700;">⏳ ${pendingForEsp.length} comando(s) aguardando despertar</span>`
+            : `<span style="color:#10b981;">✓ Sincronizado</span>`;
 
         tr.innerHTML = `
             <td><strong>${esp.name}:</strong></td>
             <td>${esp.nextUpdate}</td>
+            <td><span style="color:#38bdf8; font-weight:600;">⚡ ~${est.avgMa} mA</span> <span style="font-size:0.75rem; color:#94a3b8;">(${esp.mode})</span></td>
+            <td><strong>🕒 ${est.uptimeFormatted}</strong> <span style="font-size:0.75rem; color:#94a3b8;">(${est.uptimeHours}h totais)</span></td>
             <td>${queueHtml}</td>
         `;
         tbody.appendChild(tr);
@@ -449,33 +648,33 @@ function renderEspOptions() {
     const pendingForEsp = AppState.pendingQueue.filter(q => q.espId === esp.id);
 
     if (pendingForEsp.length > 0) {
-        syncBadge.style.background = '#fef3c7';
-        syncBadge.style.color = '#92400e';
-        syncBadge.style.borderColor = '#fcd34d';
-        syncText.textContent = `Atenção: ${pendingForEsp.length} alteração(ões) na fila offline (serão enviadas ao acordar)`;
+        syncBadge.style.display = 'flex';
+        syncText.textContent = `${pendingForEsp.length} alteração(ões) aguardando o ESP acordar (${esp.mode})`;
     } else {
-        syncBadge.style.background = '#f1f5f9';
-        syncBadge.style.color = '#334155';
-        syncBadge.style.borderColor = '#cbd5e1';
-        syncText.textContent = `Status: Todas as configurações estão sincronizadas`;
+        syncBadge.style.display = 'none';
     }
 }
 
 // ----------------------------------------------------------------------------
-// Renderização do Seletor de Modos de Energia
+// Renderização do Seletor de Modo (ONLINE / LIGHT / DEEP SLEEP)
 // ----------------------------------------------------------------------------
 function renderModeSelector() {
     const esp = AppState.esps.find(e => e.id === AppState.selectedEspId);
     if (!esp) return;
 
-    document.getElementById('mode-esp-title').textContent = esp.name;
+    document.getElementById('mode-target-esp-name').textContent = esp.name;
 
-    const cards = document.querySelectorAll('.mode-card');
+    const cards = [
+        document.getElementById('mode-card-online'),
+        document.getElementById('mode-card-light'),
+        document.getElementById('mode-card-deep')
+    ];
+
     cards.forEach((card, idx) => {
         if (idx === AppState.focusIndex) {
-            card.classList.add('active-target');
+            card.classList.add('selected');
         } else {
-            card.classList.remove('active-target');
+            card.classList.remove('selected');
         }
     });
 }
@@ -483,75 +682,70 @@ function renderModeSelector() {
 // ----------------------------------------------------------------------------
 // Renderização do Teclado Virtual (Slide 8)
 // ----------------------------------------------------------------------------
-function initVirtualKeyboardGrid() {
-    const gridContainer = document.getElementById('vk-grid');
-    gridContainer.innerHTML = '';
+function renderVirtualKeyboard() {
+    document.getElementById('vk-field-indicator').textContent = AppState.vk.fieldTitle;
+    document.getElementById('vk-buffer-text').textContent = AppState.vk.text || '';
 
-    AppState.vk.rows.forEach((row, rIdx) => {
-        const rowDiv = document.createElement('div');
-        rowDiv.className = 'vk-row';
+    // Remove destaque anterior de foco
+    document.querySelectorAll('.vk-key').forEach(k => k.classList.remove('focused'));
 
-        row.forEach((keyChar, cIdx) => {
-            const keyBtn = document.createElement('div');
-            keyBtn.className = 'vk-key';
-            keyBtn.dataset.row = rIdx;
-            keyBtn.dataset.col = cIdx;
-            keyBtn.textContent = keyChar;
-
-            if (keyChar === 'ESPAÇO') {
-                keyBtn.classList.add('key-wide');
-            } else if (keyChar === 'APAGAR') {
-                keyBtn.classList.add('key-backspace');
-                keyBtn.textContent = '⌫ APAGAR';
-            }
-
-            keyBtn.addEventListener('click', () => {
-                AppState.vk.activeRow = rIdx;
-                AppState.vk.activeCol = cIdx;
-                typeKey(keyChar);
-            });
-
-            rowDiv.appendChild(keyBtn);
-        });
-
-        gridContainer.appendChild(rowDiv);
-    });
+    // Adiciona classe focused na célula correspondente
+    const selector = `.vk-key[data-r="${AppState.vk.activeRow}"][data-c="${AppState.vk.activeCol}"]`;
+    const targetKeyEl = document.querySelector(selector);
+    if (targetKeyEl) {
+        targetKeyEl.classList.add('focused');
+        targetKeyEl.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    }
 }
 
-function renderVirtualKeyboard() {
-    document.getElementById('vk-field-label').textContent = AppState.vk.fieldTitle;
-    document.getElementById('vk-text-preview').textContent = AppState.vk.text || ' ';
+function initVirtualKeyboardGrid() {
+    const grid = document.getElementById('virtual-keyboard-grid');
+    grid.innerHTML = '';
 
-    // Atualiza traços decorativos de slots
-    const decorSlots = document.getElementById('vk-slots-decor');
-    const slotCount = Math.max(10, AppState.vk.text.length + 2);
-    decorSlots.textContent = Array(slotCount).fill('_').join(' ');
+    AppState.vk.rows.forEach((row, rIdx) => {
+        const rowEl = document.createElement('div');
+        rowEl.className = 'vk-row';
 
-    // Destaque visual no botão ativo com cantos arredondados (como o Q no Slide 8)
-    document.querySelectorAll('.vk-key').forEach(k => {
-        const r = parseInt(k.dataset.row, 10);
-        const c = parseInt(k.dataset.col, 10);
-        if (r === AppState.vk.activeRow && c === AppState.vk.activeCol) {
-            k.classList.add('active-key');
-        } else {
-            k.classList.remove('active-key');
-        }
+        row.forEach((char, cIdx) => {
+            const keyEl = document.createElement('button');
+            keyEl.type = 'button';
+            keyEl.className = 'vk-key';
+            keyEl.textContent = char;
+            keyEl.dataset.r = rIdx;
+            keyEl.dataset.c = cIdx;
+
+            if (char === 'ESPAÇO') keyEl.classList.add('key-space');
+            if (char === 'APAGAR') keyEl.classList.add('key-backspace');
+
+            keyEl.addEventListener('click', () => {
+                AppState.vk.activeRow = rIdx;
+                AppState.vk.activeCol = cIdx;
+                typeKey(char);
+            });
+
+            rowEl.appendChild(keyEl);
+        });
+
+        grid.appendChild(rowEl);
     });
 }
 
 // ============================================================================
-// 6. CONTROLADOR DE ENTRADA DO TECLADO MATRICIAL 4X4
+// 7. MANIPULAÇÃO DE ENTRADAS DO TECLADO MATRICIAL 4x4
 // ============================================================================
 
 function handleKeypadPress(key) {
-    // Feedback visual na tecla virtual do painel lateral
+    console.log(`[Keypad] Tecla pressionada: "${key}" | Tela atual: ${AppState.currentScreen}`);
+
+    // Feedback visual na tecla correspondente
     const btn = document.querySelector(`.kpad-key[data-key="${key}"]`);
     if (btn) {
         btn.classList.add('pressed');
         setTimeout(() => btn.classList.remove('pressed'), 140);
     }
 
-    document.getElementById('last-key-display').textContent = key;
+    const lastKeyDisplay = document.getElementById('last-key-display');
+    if (lastKeyDisplay) lastKeyDisplay.textContent = key;
 
     // Roteamento de comandos por tela
     switch (AppState.currentScreen) {
@@ -598,27 +792,31 @@ function handleKeypadMainMenu(key) {
 
 // --- Status Página 1 (Slide 3) ---
 function handleKeypadStatusP1(key) {
-    if (key === 'D') { // Retornar
+    const perPage = AppState.statusRowsPerPage || 5;
+    const totalRowPages = Math.max(1, Math.ceil(AppState.esps.length / perPage));
+
+    if (key === 'D') { // Retornar ao menu principal
         navigateBack();
-    } else if (key === 'B') { // Próxima Página
+    } else if (key === 'B') { // Próxima Página de Colunas (vai para Página 2)
         navigateTo('status-p2');
-    } else if (key === 'C') { // Descer na tabela
-        if (AppState.esps.length > 0) {
-            AppState.focusIndex = (AppState.focusIndex + 1) % AppState.esps.length;
-            updateUI();
-        }
+    } else if (key === 'C') { // Descer / Trocar de página de linhas (mais ESPs conectados)
+        AppState.statusRowPage = (AppState.statusRowPage + 1) % totalRowPages;
+        showToastNotification(`Página de nós: Linhas ${AppState.statusRowPage + 1} de ${totalRowPages}`);
+        updateUI();
     }
 }
 
 // --- Status Página 2 (Slide 4) ---
 function handleKeypadStatusP2(key) {
-    if (key === 'D') { // Página Anterior
+    const perPage = AppState.statusRowsPerPage || 5;
+    const totalRowPages = Math.max(1, Math.ceil(AppState.esps.length / perPage));
+
+    if (key === 'D') { // Retornar à página anterior de Colunas (volta para Página 1)
         navigateBack();
-    } else if (key === 'C') { // Descer
-        if (AppState.esps.length > 0) {
-            AppState.focusIndex = (AppState.focusIndex + 1) % AppState.esps.length;
-            updateUI();
-        }
+    } else if (key === 'C') { // Descer / Trocar de página de linhas (mais ESPs conectados)
+        AppState.statusRowPage = (AppState.statusRowPage + 1) % totalRowPages;
+        showToastNotification(`Página de nós: Linhas ${AppState.statusRowPage + 1} de ${totalRowPages}`);
+        updateUI();
     }
 }
 
@@ -629,7 +827,7 @@ function handleKeypadConfigList(key) {
         return;
     }
 
-    // Teclas 1 a 7 para selecionar direto (Slide 5)
+    // Teclas 1 a 9 para selecionar direto (Slide 5)
     const num = parseInt(key, 10);
     if (!isNaN(num) && num >= 1 && num <= AppState.esps.length) {
         selectEspForConfig(AppState.esps[num - 1].id);
@@ -770,7 +968,7 @@ function saveVirtualKeyboardValue() {
 }
 
 // ============================================================================
-// 7. ARQUITETURA DE FILA OFFLINE (DEEP/LIGHT SLEEP SYNC)
+// 8. ARQUITETURA DE FILA OFFLINE (DEEP/LIGHT SLEEP SYNC)
 // ============================================================================
 
 function saveEspSetting(field, value) {
@@ -833,7 +1031,7 @@ function processPendingQueueForEsp(esp) {
 }
 
 // ============================================================================
-// 8. COMUNICAÇÃO ASSÍNCRONA COM ESP32 REST API (FETCH API)
+// 9. COMUNICAÇÃO ASSÍNCRONA COM ESP32 REST API (FETCH API)
 // ============================================================================
 
 async function fetchStatusFromESP32() {
@@ -951,7 +1149,7 @@ function simulateBackgroundEvents() {
 }
 
 // ============================================================================
-// 9. CONFIGURAÇÃO DE EVENTOS DO TECLADO DO PC E BOTÕES DA INTERFACE
+// 10. CONFIGURAÇÃO DE EVENTOS DO TECLADO DO PC E BOTÕES DA INTERFACE
 // ============================================================================
 
 function setupEventListeners() {
@@ -1030,6 +1228,14 @@ function setupEventListeners() {
     document.getElementById('btn-status-return').addEventListener('click', () => navigateBack());
     document.getElementById('btn-status-next-page').addEventListener('click', () => navigateTo('status-p2'));
     document.getElementById('btn-status-prev-page').addEventListener('click', () => navigateBack());
+    
+    // Botão "C" DESCER no rodapé de Status (alternar páginas de linhas)
+    const btnScrollP1 = document.getElementById('btn-status-scroll');
+    if (btnScrollP1) btnScrollP1.addEventListener('click', () => handleKeypadPress('C'));
+
+    const btnScrollP2 = document.getElementById('btn-status-scroll-p2');
+    if (btnScrollP2) btnScrollP2.addEventListener('click', () => handleKeypadPress('C'));
+
     document.getElementById('btn-config-list-return').addEventListener('click', () => navigateBack());
     document.getElementById('btn-esp-options-return').addEventListener('click', () => navigateBack());
     document.getElementById('btn-mode-return').addEventListener('click', () => navigateBack());

@@ -211,16 +211,40 @@ const AppState = {
 };
 
 // ============================================================================
-// 2. INICIALIZAÇÃO DA APLICAÇÃO
+// 2. INICIALIZAÇÃO DA APLICAÇÃO (COM PROTEÇÃO CONTRA ERROS)
 // ============================================================================
 
 document.addEventListener('DOMContentLoaded', () => {
-    initDynamicBackground();
-    initVirtualKeyboardGrid();
-    setupEventListeners();
-    updateUI();
-    startPollingLoop();
-    simulateBackgroundEvents();
+    try {
+        initDynamicBackground();
+    } catch (e) {
+        console.error('[Init] Erro ao iniciar fundo dinâmico:', e);
+    }
+
+    try {
+        initVirtualKeyboardGrid();
+    } catch (e) {
+        console.error('[Init] Erro ao iniciar teclado virtual:', e);
+    }
+
+    try {
+        setupEventListeners();
+    } catch (e) {
+        console.error('[Init] Erro ao configurar eventos:', e);
+    }
+
+    try {
+        updateUI();
+    } catch (e) {
+        console.error('[Init] Erro ao atualizar interface:', e);
+    }
+
+    try {
+        startPollingLoop();
+        simulateBackgroundEvents();
+    } catch (e) {
+        console.error('[Init] Erro na simulação de eventos:', e);
+    }
 });
 
 // ============================================================================
@@ -230,6 +254,10 @@ document.addEventListener('DOMContentLoaded', () => {
 function initDynamicBackground() {
     const slide1 = document.getElementById('bg-slide-1');
     const slide2 = document.getElementById('bg-slide-2');
+
+    if (!slide1 || !slide2) return;
+
+    if (AppState.bgSlideTimer) clearInterval(AppState.bgSlideTimer);
 
     AppState.bgSlideTimer = setInterval(() => {
         if (AppState.activeBgIndex === 1) {
@@ -270,6 +298,7 @@ function navigateBack() {
 
 function applySubpageBackdropOpacity() {
     const appEl = document.getElementById('app');
+    if (!appEl) return;
     const isSubpage = AppState.currentScreen !== 'main-menu';
     
     // Regra estrita: 14% de opacidade aplicada nas abas de Status e Configurações
@@ -415,25 +444,29 @@ function updateHeaderBadges() {
     const queueText = document.getElementById('queue-count-text');
     const count = AppState.pendingQueue.length;
 
-    if (count > 0) {
-        queueBadge.style.display = 'flex';
-        queueText.textContent = `${count} alteração(ões) pendente(s) (Nós Dormindo)`;
-    } else {
-        queueBadge.style.display = 'none';
+    if (queueBadge && queueText) {
+        if (count > 0) {
+            queueBadge.style.display = 'flex';
+            queueText.textContent = `${count} alteração(ões) pendente(s) (Nós Dormindo)`;
+        } else {
+            queueBadge.style.display = 'none';
+        }
     }
 
     const apiText = document.getElementById('api-status-text');
     const statusDot = document.querySelector('.status-dot');
 
-    if (AppState.api.simulatorMode) {
-        apiText.textContent = 'API Simulada: Modo Autônomo Ativo';
-        statusDot.className = 'status-dot online';
-    } else if (AppState.api.isOnline) {
-        apiText.textContent = `ESP32 REST: Conectado (${AppState.api.baseUrl})`;
-        statusDot.className = 'status-dot online';
-    } else {
-        apiText.textContent = `ESP32 REST: Desconectado (${AppState.api.baseUrl})`;
-        statusDot.className = 'status-dot offline';
+    if (apiText && statusDot) {
+        if (AppState.api.simulatorMode) {
+            apiText.textContent = 'API Simulada: Modo Autônomo Ativo';
+            statusDot.className = 'status-dot online';
+        } else if (AppState.api.isOnline) {
+            apiText.textContent = `ESP32 REST: Conectado (${AppState.api.baseUrl})`;
+            statusDot.className = 'status-dot online';
+        } else {
+            apiText.textContent = `ESP32 REST: Desconectado (${AppState.api.baseUrl})`;
+            statusDot.className = 'status-dot offline';
+        }
     }
 }
 
@@ -447,6 +480,7 @@ function renderMainMenu() {
     ];
 
     options.forEach((opt, idx) => {
+        if (!opt) return;
         if (idx === AppState.focusIndex) {
             opt.classList.add('active-target');
         } else {
@@ -456,16 +490,18 @@ function renderMainMenu() {
 
     // Notificações
     const notifContainer = document.getElementById('notifications-content');
-    notifContainer.innerHTML = '';
-    if (AppState.notifications.length === 0) {
-        notifContainer.innerHTML = '<p class="notif-item empty">Nenhuma notificação</p>';
-    } else {
-        AppState.notifications.forEach(msg => {
-            const p = document.createElement('p');
-            p.className = 'notif-item';
-            p.textContent = msg;
-            notifContainer.appendChild(p);
-        });
+    if (notifContainer) {
+        notifContainer.innerHTML = '';
+        if (AppState.notifications.length === 0) {
+            notifContainer.innerHTML = '<p class="notif-item empty">Nenhuma notificação</p>';
+        } else {
+            AppState.notifications.forEach(msg => {
+                const p = document.createElement('p');
+                p.className = 'notif-item';
+                p.textContent = msg;
+                notifContainer.appendChild(p);
+            });
+        }
     }
 }
 
@@ -478,20 +514,24 @@ function renderStatusP1() {
     const table = document.getElementById('table-status-p1');
     const rowIndicator = document.getElementById('status-row-indicator');
 
+    if (!tbody || !table) return;
+
     tbody.innerHTML = '';
 
     const hasOnlineOrConfigured = AppState.esps.some(e => e.connectivity === 'ONLINE' || e.connectivity === 'DORMINDO');
 
     if (!hasOnlineOrConfigured || AppState.esps.length === 0) {
         table.style.display = 'none';
-        emptyMsg.classList.add('visible');
-        emptyMsg.textContent = 'Nenhum ESP Online ou Configurado';
+        if (emptyMsg) {
+            emptyMsg.classList.add('visible');
+            emptyMsg.textContent = 'Nenhum ESP Online ou Configurado';
+        }
         if (rowIndicator) rowIndicator.textContent = 'Linhas: 0/0';
         return;
     }
 
     table.style.display = 'table';
-    emptyMsg.classList.remove('visible');
+    if (emptyMsg) emptyMsg.classList.remove('visible');
 
     const perPage = AppState.statusRowsPerPage || 5;
     const totalRowPages = Math.max(1, Math.ceil(AppState.esps.length / perPage));
@@ -540,6 +580,8 @@ function renderStatusP1() {
 function renderStatusP2() {
     const tbody = document.getElementById('tbody-status-p2');
     const rowIndicatorP2 = document.getElementById('status-row-indicator-p2');
+    if (!tbody) return;
+
     tbody.innerHTML = '';
 
     const perPage = AppState.statusRowsPerPage || 5;
@@ -588,17 +630,21 @@ function renderConfigList() {
     const emptyMsg = document.getElementById('empty-config-message');
     const instructionText = document.getElementById('config-instruction-text');
 
+    if (!container) return;
+
     container.innerHTML = '';
 
     if (AppState.esps.length === 0) {
-        emptyMsg.classList.add('visible');
-        instructionText.style.display = 'none';
+        if (emptyMsg) emptyMsg.classList.add('visible');
+        if (instructionText) instructionText.style.display = 'none';
         return;
     }
 
-    emptyMsg.classList.remove('visible');
-    instructionText.style.display = 'block';
-    instructionText.textContent = `1 A ${AppState.esps.length} PARA SELECIONAR`;
+    if (emptyMsg) emptyMsg.classList.remove('visible');
+    if (instructionText) {
+        instructionText.style.display = 'block';
+        instructionText.textContent = `1 A ${AppState.esps.length} PARA SELECIONAR`;
+    }
 
     AppState.esps.forEach((esp, idx) => {
         const card = document.createElement('div');
@@ -628,10 +674,17 @@ function renderEspOptions() {
     const esp = AppState.esps.find(e => e.id === AppState.selectedEspId);
     if (!esp) return;
 
-    document.getElementById('selected-esp-title').textContent = `${esp.name} (${esp.connectivity})`;
-    document.getElementById('val-preview-interval').textContent = `(atual: ${esp.interval})`;
-    document.getElementById('val-preview-unit').textContent = `(atual: ${esp.unit})`;
-    document.getElementById('val-preview-mode').textContent = `(atual: ${esp.mode})`;
+    const titleEl = document.getElementById('selected-esp-title');
+    if (titleEl) titleEl.textContent = `${esp.name} (${esp.connectivity})`;
+
+    const intPreview = document.getElementById('val-preview-interval');
+    if (intPreview) intPreview.textContent = `(atual: ${esp.interval})`;
+
+    const unitPreview = document.getElementById('val-preview-unit');
+    if (unitPreview) unitPreview.textContent = `(atual: ${esp.unit})`;
+
+    const modePreview = document.getElementById('val-preview-mode');
+    if (modePreview) modePreview.textContent = `(atual: ${esp.mode})`;
 
     const subopts = document.querySelectorAll('.esp-subopt');
     subopts.forEach((opt, idx) => {
@@ -647,11 +700,13 @@ function renderEspOptions() {
     const syncText = document.getElementById('esp-sync-status-text');
     const pendingForEsp = AppState.pendingQueue.filter(q => q.espId === esp.id);
 
-    if (pendingForEsp.length > 0) {
-        syncBadge.style.display = 'flex';
-        syncText.textContent = `${pendingForEsp.length} alteração(ões) aguardando o ESP acordar (${esp.mode})`;
-    } else {
-        syncBadge.style.display = 'none';
+    if (syncBadge && syncText) {
+        if (pendingForEsp.length > 0) {
+            syncBadge.style.display = 'flex';
+            syncText.textContent = `${pendingForEsp.length} alteração(ões) aguardando o ESP acordar (${esp.mode})`;
+        } else {
+            syncBadge.style.display = 'none';
+        }
     }
 }
 
@@ -662,19 +717,20 @@ function renderModeSelector() {
     const esp = AppState.esps.find(e => e.id === AppState.selectedEspId);
     if (!esp) return;
 
-    document.getElementById('mode-target-esp-name').textContent = esp.name;
+    const titleEl = document.getElementById('mode-esp-title') || document.getElementById('mode-target-esp-name');
+    if (titleEl) titleEl.textContent = esp.name;
 
     const cards = [
-        document.getElementById('mode-card-online'),
-        document.getElementById('mode-card-light'),
-        document.getElementById('mode-card-deep')
-    ];
+        document.getElementById('mode-opt-online') || document.getElementById('mode-card-online'),
+        document.getElementById('mode-opt-light') || document.getElementById('mode-card-light'),
+        document.getElementById('mode-opt-deep') || document.getElementById('mode-card-deep')
+    ].filter(Boolean);
 
     cards.forEach((card, idx) => {
         if (idx === AppState.focusIndex) {
-            card.classList.add('selected');
+            card.classList.add('selected', 'active-target');
         } else {
-            card.classList.remove('selected');
+            card.classList.remove('selected', 'active-target');
         }
     });
 }
@@ -683,23 +739,32 @@ function renderModeSelector() {
 // Renderização do Teclado Virtual (Slide 8)
 // ----------------------------------------------------------------------------
 function renderVirtualKeyboard() {
-    document.getElementById('vk-field-indicator').textContent = AppState.vk.fieldTitle;
-    document.getElementById('vk-buffer-text').textContent = AppState.vk.text || '';
+    const labelEl = document.getElementById('vk-field-label') || document.getElementById('vk-field-indicator');
+    if (labelEl) labelEl.textContent = AppState.vk.fieldTitle;
+
+    const previewEl = document.getElementById('vk-text-preview') || document.getElementById('vk-buffer-text');
+    if (previewEl) previewEl.textContent = AppState.vk.text || '';
 
     // Remove destaque anterior de foco
-    document.querySelectorAll('.vk-key').forEach(k => k.classList.remove('focused'));
+    document.querySelectorAll('.vk-key').forEach(k => {
+        k.classList.remove('active-key', 'focused');
+    });
 
     // Adiciona classe focused na célula correspondente
     const selector = `.vk-key[data-r="${AppState.vk.activeRow}"][data-c="${AppState.vk.activeCol}"]`;
     const targetKeyEl = document.querySelector(selector);
     if (targetKeyEl) {
-        targetKeyEl.classList.add('focused');
+        targetKeyEl.classList.add('active-key', 'focused');
         targetKeyEl.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     }
 }
 
 function initVirtualKeyboardGrid() {
-    const grid = document.getElementById('virtual-keyboard-grid');
+    const grid = document.getElementById('vk-grid') || document.getElementById('virtual-keyboard-grid');
+    if (!grid) {
+        console.warn('[Init] Elemento do grid do teclado virtual não encontrado no HTML');
+        return;
+    }
     grid.innerHTML = '';
 
     AppState.vk.rows.forEach((row, rIdx) => {
@@ -714,10 +779,12 @@ function initVirtualKeyboardGrid() {
             keyEl.dataset.r = rIdx;
             keyEl.dataset.c = cIdx;
 
-            if (char === 'ESPAÇO') keyEl.classList.add('key-space');
+            if (char === 'ESPAÇO') keyEl.classList.add('key-wide', 'key-space');
             if (char === 'APAGAR') keyEl.classList.add('key-backspace');
 
-            keyEl.addEventListener('click', () => {
+            keyEl.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
                 AppState.vk.activeRow = rIdx;
                 AppState.vk.activeCol = cIdx;
                 typeKey(char);
@@ -735,9 +802,9 @@ function initVirtualKeyboardGrid() {
 // ============================================================================
 
 function handleKeypadPress(key) {
-    console.log(`[Keypad] Tecla pressionada: "${key}" | Tela atual: ${AppState.currentScreen}`);
+    console.log(`[Keypad] Tecla acionada: "${key}" | Tela: ${AppState.currentScreen}`);
 
-    // Feedback visual na tecla correspondente
+    // Feedback visual na tecla correspondente do painel 4x4
     const btn = document.querySelector(`.kpad-key[data-key="${key}"]`);
     if (btn) {
         btn.classList.add('pressed');
@@ -1149,12 +1216,34 @@ function simulateBackgroundEvents() {
 }
 
 // ============================================================================
-// 10. CONFIGURAÇÃO DE EVENTOS DO TECLADO DO PC E BOTÕES DA INTERFACE
+// 10. CONFIGURAÇÃO DE EVENTOS DO TECLADO DO PC E BOTÕES DA INTERFACE (SEGURO)
 // ============================================================================
 
 function setupEventListeners() {
-    // Teclado Físico do Computador mapeado para o Teclado Matricial 4x4
+    // 1. Teclado Físico do Computador mapeado para o Teclado Matricial 4x4
     window.addEventListener('keydown', (e) => {
+        // Se estiver no teclado virtual de digitação (Slide 8):
+        if (AppState.currentScreen === 'virtual-keyboard') {
+            if (e.key === 'Backspace') {
+                e.preventDefault();
+                typeKey('APAGAR');
+                return;
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                const selectedChar = AppState.vk.rows[AppState.vk.activeRow][AppState.vk.activeCol];
+                typeKey(selectedChar);
+                return;
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                navigateBack();
+                return;
+            } else if (e.key === ' ') {
+                e.preventDefault();
+                typeKey('ESPAÇO');
+                return;
+            }
+        }
+
         const keyMap = {
             'ArrowUp': 'A',
             'ArrowLeft': 'B',
@@ -1175,86 +1264,201 @@ function setupEventListeners() {
 
         if (keyMap[e.key]) {
             handleKeypadPress(keyMap[e.key]);
+        } else if (AppState.currentScreen === 'virtual-keyboard' && e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+            // Digitação direta no teclado virtual se for caractere imprimível
+            typeKey(e.key.toUpperCase());
         }
     });
 
-    // Teclas do Widget Lateral 4x4
+    // 2. Teclas do Widget Lateral 4x4 (Clique com o Mouse)
     document.querySelectorAll('.kpad-key').forEach(btn => {
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
             const key = btn.dataset.key;
-            handleKeypadPress(key);
+            if (key) handleKeypadPress(key);
         });
     });
 
-    // Controles de Cabeçalho e Painéis
-    document.getElementById('btn-toggle-keypad').addEventListener('click', () => {
-        document.getElementById('keypad-sim-panel').classList.toggle('hidden');
-    });
+    // 3. Controles de Cabeçalho e Painéis
+    const btnToggleKeypad = document.getElementById('btn-toggle-keypad');
+    if (btnToggleKeypad) {
+        btnToggleKeypad.addEventListener('click', (e) => {
+            e.preventDefault();
+            const panel = document.getElementById('keypad-sim-panel');
+            if (panel) panel.classList.toggle('hidden');
+        });
+    }
 
-    document.getElementById('btn-close-keypad').addEventListener('click', () => {
-        document.getElementById('keypad-sim-panel').classList.add('hidden');
-    });
+    const btnCloseKeypad = document.getElementById('btn-close-keypad');
+    if (btnCloseKeypad) {
+        btnCloseKeypad.addEventListener('click', (e) => {
+            e.preventDefault();
+            const panel = document.getElementById('keypad-sim-panel');
+            if (panel) panel.classList.add('hidden');
+        });
+    }
 
-    // Modal de API
+    // 4. Modal de API
+    const btnToggleApiModal = document.getElementById('btn-toggle-api-modal');
+    if (btnToggleApiModal) {
+        btnToggleApiModal.addEventListener('click', (e) => {
+            e.preventDefault();
+            openApiModal();
+        });
+    }
+
     const modal = document.getElementById('modal-api-config');
-    document.getElementById('btn-toggle-api-modal').addEventListener('click', () => {
-        openApiModal();
-    });
+    const btnCloseModal = document.getElementById('btn-close-modal');
+    if (btnCloseModal && modal) {
+        btnCloseModal.addEventListener('click', (e) => {
+            e.preventDefault();
+            modal.classList.remove('open');
+        });
+    }
 
-    document.getElementById('btn-close-modal').addEventListener('click', () => {
-        modal.classList.remove('open');
-    });
+    const btnModalCancel = document.getElementById('btn-modal-cancel');
+    if (btnModalCancel && modal) {
+        btnModalCancel.addEventListener('click', (e) => {
+            e.preventDefault();
+            modal.classList.remove('open');
+        });
+    }
 
-    document.getElementById('btn-modal-cancel').addEventListener('click', () => {
-        modal.classList.remove('open');
-    });
+    const btnModalSave = document.getElementById('btn-modal-save');
+    if (btnModalSave) {
+        btnModalSave.addEventListener('click', (e) => {
+            e.preventDefault();
+            const ipInput = document.getElementById('input-esp-ip');
+            const intervalInput = document.getElementById('input-sync-interval');
+            const simChk = document.getElementById('chk-simulator-mode');
 
-    document.getElementById('btn-modal-save').addEventListener('click', () => {
-        AppState.api.baseUrl = document.getElementById('input-esp-ip').value.trim();
-        AppState.api.pollingInterval = parseInt(document.getElementById('input-sync-interval').value, 10);
-        AppState.api.simulatorMode = document.getElementById('chk-simulator-mode').checked;
+            if (ipInput) AppState.api.baseUrl = ipInput.value.trim();
+            if (intervalInput) AppState.api.pollingInterval = parseInt(intervalInput.value, 10);
+            if (simChk) AppState.api.simulatorMode = simChk.checked;
 
-        startPollingLoop();
-        modal.classList.remove('open');
-        updateUI();
-        showToastNotification('Configurações da API atualizadas!');
-    });
+            startPollingLoop();
+            if (modal) modal.classList.remove('open');
+            updateUI();
+            showToastNotification('Configurações da API atualizadas!');
+        });
+    }
 
-    // Ações de clique nas opções do menu principal
-    document.getElementById('menu-opt-status').addEventListener('click', () => navigateTo('status-p1'));
-    document.getElementById('menu-opt-config').addEventListener('click', () => navigateTo('config-list'));
+    // 5. Ações de clique nas opções do menu principal
+    const menuStatus = document.getElementById('menu-opt-status');
+    if (menuStatus) {
+        menuStatus.addEventListener('click', (e) => {
+            e.preventDefault();
+            AppState.focusIndex = 0;
+            navigateTo('status-p1');
+        });
+    }
 
-    // Ações de navegação do rodapé de Status
-    document.getElementById('btn-status-return').addEventListener('click', () => navigateBack());
-    document.getElementById('btn-status-next-page').addEventListener('click', () => navigateTo('status-p2'));
-    document.getElementById('btn-status-prev-page').addEventListener('click', () => navigateBack());
-    
-    // Botão "C" DESCER no rodapé de Status (alternar páginas de linhas)
-    const btnScrollP1 = document.getElementById('btn-status-scroll');
-    if (btnScrollP1) btnScrollP1.addEventListener('click', () => handleKeypadPress('C'));
+    const menuConfig = document.getElementById('menu-opt-config');
+    if (menuConfig) {
+        menuConfig.addEventListener('click', (e) => {
+            e.preventDefault();
+            AppState.focusIndex = 1;
+            navigateTo('config-list');
+        });
+    }
 
-    const btnScrollP2 = document.getElementById('btn-status-scroll-p2');
-    if (btnScrollP2) btnScrollP2.addEventListener('click', () => handleKeypadPress('C'));
+    // 6. Ações de navegação do rodapé de Status
+    const btnStatusRet = document.getElementById('btn-status-return');
+    if (btnStatusRet) {
+        btnStatusRet.addEventListener('click', (e) => {
+            e.preventDefault();
+            navigateBack();
+        });
+    }
 
-    document.getElementById('btn-config-list-return').addEventListener('click', () => navigateBack());
-    document.getElementById('btn-esp-options-return').addEventListener('click', () => navigateBack());
-    document.getElementById('btn-mode-return').addEventListener('click', () => navigateBack());
+    const btnStatusNext = document.getElementById('btn-status-next-page');
+    if (btnStatusNext) {
+        btnStatusNext.addEventListener('click', (e) => {
+            e.preventDefault();
+            navigateTo('status-p2');
+        });
+    }
 
-    // Teclado virtual rodapé
-    document.getElementById('btn-vk-cancel').addEventListener('click', () => navigateBack());
-    document.getElementById('btn-vk-save').addEventListener('click', () => saveVirtualKeyboardValue());
+    const btnStatusPrev = document.getElementById('btn-status-prev-page');
+    if (btnStatusPrev) {
+        btnStatusPrev.addEventListener('click', (e) => {
+            e.preventDefault();
+            navigateBack();
+        });
+    }
 
-    // Clique nas subopções de configuração
+    const btnStatusScroll = document.getElementById('btn-status-scroll');
+    if (btnStatusScroll) {
+        btnStatusScroll.addEventListener('click', (e) => {
+            e.preventDefault();
+            handleKeypadPress('C');
+        });
+    }
+
+    const btnStatusScrollP2 = document.getElementById('btn-status-scroll-p2');
+    if (btnStatusScrollP2) {
+        btnStatusScrollP2.addEventListener('click', (e) => {
+            e.preventDefault();
+            handleKeypadPress('C');
+        });
+    }
+
+    // 7. Retornos das demais telas
+    const btnConfigRet = document.getElementById('btn-config-list-return');
+    if (btnConfigRet) {
+        btnConfigRet.addEventListener('click', (e) => {
+            e.preventDefault();
+            navigateBack();
+        });
+    }
+
+    const btnEspOptRet = document.getElementById('btn-esp-options-return');
+    if (btnEspOptRet) {
+        btnEspOptRet.addEventListener('click', (e) => {
+            e.preventDefault();
+            navigateBack();
+        });
+    }
+
+    const btnModeRet = document.getElementById('btn-mode-return');
+    if (btnModeRet) {
+        btnModeRet.addEventListener('click', (e) => {
+            e.preventDefault();
+            navigateBack();
+        });
+    }
+
+    // 8. Teclado virtual rodapé
+    const btnVkCancel = document.getElementById('btn-vk-cancel');
+    if (btnVkCancel) {
+        btnVkCancel.addEventListener('click', (e) => {
+            e.preventDefault();
+            navigateBack();
+        });
+    }
+
+    const btnVkSave = document.getElementById('btn-vk-save');
+    if (btnVkSave) {
+        btnVkSave.addEventListener('click', (e) => {
+            e.preventDefault();
+            saveVirtualKeyboardValue();
+        });
+    }
+
+    // 9. Clique nas subopções de configuração
     document.querySelectorAll('.esp-subopt').forEach((el, idx) => {
-        el.addEventListener('click', () => {
+        el.addEventListener('click', (e) => {
+            e.preventDefault();
             AppState.focusIndex = idx;
             handleKeypadEspOptions('0');
         });
     });
 
-    // Clique nos modos
+    // 10. Clique nos modos de energia
     document.querySelectorAll('.mode-card').forEach((el, idx) => {
-        el.addEventListener('click', () => {
+        el.addEventListener('click', (e) => {
+            e.preventDefault();
             AppState.focusIndex = idx;
             handleKeypadModeSelector('0');
         });
@@ -1263,22 +1467,29 @@ function setupEventListeners() {
 
 function openApiModal() {
     const modal = document.getElementById('modal-api-config');
-    document.getElementById('input-esp-ip').value = AppState.api.baseUrl;
-    document.getElementById('chk-simulator-mode').checked = AppState.api.simulatorMode;
+    if (!modal) return;
+
+    const ipInput = document.getElementById('input-esp-ip');
+    if (ipInput) ipInput.value = AppState.api.baseUrl;
+
+    const simChk = document.getElementById('chk-simulator-mode');
+    if (simChk) simChk.checked = AppState.api.simulatorMode;
 
     // Renderiza lista da fila offline no modal
     const queueListEl = document.getElementById('modal-queue-items');
-    queueListEl.innerHTML = '';
-    if (AppState.pendingQueue.length === 0) {
-        queueListEl.innerHTML = '<p class="empty-queue-msg">Nenhum comando na fila no momento.</p>';
-    } else {
-        AppState.pendingQueue.forEach(item => {
-            const div = document.createElement('div');
-            div.style.padding = '4px 0';
-            div.style.borderBottom = '1px solid #334155';
-            div.innerHTML = `<strong>${item.espName}:</strong> alterar <em>${item.field}</em> para "<strong>${item.value}</strong>" (${item.timestamp})`;
-            queueListEl.appendChild(div);
-        });
+    if (queueListEl) {
+        queueListEl.innerHTML = '';
+        if (AppState.pendingQueue.length === 0) {
+            queueListEl.innerHTML = '<p class="empty-queue-msg">Nenhum comando na fila no momento.</p>';
+        } else {
+            AppState.pendingQueue.forEach(item => {
+                const div = document.createElement('div');
+                div.style.padding = '4px 0';
+                div.style.borderBottom = '1px solid #334155';
+                div.innerHTML = `<strong>${item.espName}:</strong> alterar <em>${item.field}</em> para "<strong>${item.value}</strong>" (${item.timestamp})`;
+                queueListEl.appendChild(div);
+            });
+        }
     }
 
     modal.classList.add('open');

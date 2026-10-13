@@ -180,19 +180,22 @@ void handlePostConfig() {
             // Enfileira a configuração no registro do DeviceManager
             deviceManager.queueConfig(espId, novoIntervalo, novoModo, novoNome);
 
-            // Se o nó estiver ONLINE no momento com MAC registrado, despacha imediatamente via ESP-NOW
+            // Se o MAC já foi capturado, despacha imediatamente via ESP-NOW
             PacoteConfiguracao cfgEnvio;
             uint8_t macDest[6];
-            if (dev && dev->hasMac && dev->isOnline && dev->connectivity == "ONLINE") {
+            if (dev && dev->hasMac) {
                 if (deviceManager.getPendingConfig(espId, cfgEnvio, macDest)) {
-                    Serial.printf("[API REST] Periférico '%s' está ONLINE! Despachando configuração via ESP-NOW imediatamente...\n", espId.c_str());
-                    espNowCentral.enviarConfiguracao(macDest, cfgEnvio);
+                    Serial.printf("[API REST] Despachando configuração para '%s' via ESP-NOW imediatamente...\n", espId.c_str());
+                    bool enviado = espNowCentral.enviarConfiguracao(macDest, cfgEnvio);
+                    if (enviado) {
+                        Serial.println("[API REST] Pacote ESP-NOW transmitido via rádio.");
+                    }
                     server.send(200, "application/json", "{\"status\":\"sent\",\"message\":\"Configuracao despachada diretamente via ESP-NOW\"}");
                     return;
                 }
             }
 
-            Serial.printf("[API REST] Periférico '%s' está em repouso/offline. Mantida na fila do ESP Central para envio quando o nó acordar.\n", espId.c_str());
+            Serial.printf("[API REST] Periférico '%s' aguardando sinal. Mantida na fila do ESP Central para envio quando o nó acordar.\n", espId.c_str());
             server.send(200, "application/json", "{\"status\":\"queued\",\"message\":\"Configuracao armazenada na fila de sincronizacao\"}");
             return;
         }
@@ -299,6 +302,15 @@ void setup() {
         Serial.printf("\n[CENTRAL] ACK de configuração confirmado pelo periférico '%s'! Status: %s\n",
                       ack.nodeId, ack.sucesso ? "SUCESSO" : "ERRO");
         if (ack.sucesso) {
+            Device* dev = deviceManager.getDevice(ack.nodeId);
+            if (dev) {
+                if (ack.intervaloAplicadoMin > 0) {
+                    deviceManager.setInterval(ack.nodeId, String(ack.intervaloAplicadoMin) + " min");
+                }
+                if (strlen(ack.modoAplicado) > 0) {
+                    dev->mode = ack.modoAplicado;
+                }
+            }
             deviceManager.clearPendingConfig(ack.nodeId);
             deviceManager.addNotification(String("✓ Configuração sincronizada com sucesso no nó '") + ack.nodeId + "'!");
         }

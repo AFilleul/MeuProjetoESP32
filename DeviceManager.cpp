@@ -156,7 +156,10 @@ void DeviceManager::updateTelemetry(const String& id, float umidade, uint8_t bat
         dev->connectivity = "ONLINE";
         dev->sensorValue = String(umidade, 1) + "% (Umidade Solo)";
         dev->batteryPct = batPct;
-        if (modo.length() > 0) dev->mode = modo;
+        // Não sobrescreve com o modo antigo do periférico se houver uma configuração pendente aguardando sincronização
+        if (modo.length() > 0 && !dev->hasPendingConfig) {
+            dev->mode = modo;
+        }
         if (uptimeSec > 0) dev->uptimeHours = uptimeSec / 3600;
     }
 }
@@ -312,9 +315,14 @@ void DeviceManager::queueConfig(const String& id, uint16_t novoIntervaloMin, con
         setInterval(id, String(novoIntervaloMin) + " min");
     }
     if (novoModo.length() > 0) {
-        strncpy(dev->pendingConfig.novoModo, novoModo.c_str(), sizeof(dev->pendingConfig.novoModo) - 1);
+        String modoNorm = novoModo;
+        if (modoNorm == "DEEP SLEEP" || modoNorm == "DEEP_SLEEP") modoNorm = "DEEP_SLEEP";
+        else if (modoNorm == "LIGHT SLEEP" || modoNorm == "LIGHT_SLEEP") modoNorm = "LIGHT_SLEEP";
+        else if (modoNorm == "ONLINE") modoNorm = "ONLINE";
+
+        strncpy(dev->pendingConfig.novoModo, modoNorm.c_str(), sizeof(dev->pendingConfig.novoModo) - 1);
         dev->pendingConfig.novoModo[sizeof(dev->pendingConfig.novoModo) - 1] = '\0';
-        dev->mode = novoModo;
+        dev->mode = modoNorm;
     }
     if (novoNome.length() > 0) {
         strncpy(dev->pendingConfig.novoNome, novoNome.c_str(), sizeof(dev->pendingConfig.novoNome) - 1);

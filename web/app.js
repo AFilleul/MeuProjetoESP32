@@ -190,9 +190,9 @@ const AppState = {
     
     // Configurações da API REST do ESP32
     api: {
-        baseUrl: 'http://192.168.4.1',
+        baseUrl: (typeof window !== 'undefined' && window.location && window.location.protocol.startsWith('http') && window.location.hostname !== 'localhost') ? window.location.origin : 'http://192.168.4.1',
         pollingInterval: 4000,
-        simulatorMode: true,
+        simulatorMode: false,
         isOnline: true,
         pollingTimer: null
     },
@@ -1339,51 +1339,84 @@ function saveVirtualKeyboardValue() {
 // 8. ARQUITETURA DE FILA OFFLINE (DEEP/LIGHT SLEEP SYNC)
 // ============================================================================
 
+// Registro de alterações recentes feitas pelo usuário para proteger contra sobrescrita imediata do polling
+const recentLocalEdits = new Map();
+
+function markPendingLocalEdit(espId, field, value) {
+    recentLocalEdits.set(`${espId}:${field}`, {
+        value: value,
+        timestamp: Date.now()
+    });
+}
+
+function getPendingLocalEdit(espId, field) {
+    const key = `${espId}:${field}`;
+    const entry = recentLocalEdits.get(key);
+    if (!entry) return null;
+    if (Date.now() - entry.timestamp > 25000) { // Protege por 25 segundos
+        recentLocalEdits.delete(key);
+        return null;
+    }
+    return entry.value;
+}
+
 function saveEspSetting(field, value) {
     const esp = AppState.esps.find(e => e.id === AppState.selectedEspId);
     if (!esp) return;
 
+    let apiValue = value;
+    if (field === 'mode') {
+        if (value === 'DEEP SLEEP' || value === 'DEEP_SLEEP') apiValue = 'DEEP_SLEEP';
+        else if (value === 'LIGHT SLEEP' || value === 'LIGHT_SLEEP') apiValue = 'LIGHT_SLEEP';
+        else if (value === 'ONLINE') apiValue = 'ONLINE';
+    } else if (field === 'interval') {
+        apiValue = parseInt(String(value).replace(/\D/g, ''), 10) || 5;
+    }
+
+    // 1. Aplica SEMPRE imediatamente no objeto local da interface para resposta instantânea
+    applySettingDirectly(esp, field, value);
+
+    // 2. Protege o valor editado no cache local (impede que o polling subsequente reverta antes da sincronização)
+    markPendingLocalEdit(esp.id, field, value);
+
+    // 3. Mantém registro na fila visual de pendências
+    let displayValue = typeof value === 'object' ? value.label : value;
+    const pendingItem = {
+        id: Date.now(),
+        espId: esp.id,
+        espName: esp.name,
+        field: field,
+        value: value,
+        displayValue: displayValue,
+        timestamp: new Date().toLocaleTimeString('pt-BR')
+    };
+    AppState.pendingQueue = AppState.pendingQueue.filter(q => !(q.espId === esp.id && q.field === field));
+    AppState.pendingQueue.push(pendingItem);
+
+    // 4. Mensagem ao usuário
     const isSleeping = esp.connectivity === 'DORMINDO';
     const isOffline = esp.connectivity === 'OFFLINE';
-
-    let displayValue = typeof value === 'object' ? value.label : value;
-
     if (isSleeping || isOffline) {
-        // Enfileira na fila de pendências
-        const pendingItem = {
-            id: Date.now(),
-            espId: esp.id,
-            espName: esp.name,
-            field: field,
-            value: value,
-            displayValue: displayValue,
-            timestamp: new Date().toLocaleTimeString('pt-BR')
-        };
-
-        // Remove item duplicado da mesma propriedade se já existia na fila
-        AppState.pendingQueue = AppState.pendingQueue.filter(q => !(q.espId === esp.id && q.field === field));
-        AppState.pendingQueue.push(pendingItem);
-
-        const msgText = isOffline
-            ? `Configuração salva na fila! O ${esp.name} está OFFLINE e sincronizará quando voltar a transmitir.`
-            : `Configuração na fila offline! O ${esp.name} está em repouso e receberá ao acordar.`;
-        showToastNotification(msgText);
-        console.log('[OfflineSync] Comando enfileirado para nó:', pendingItem);
+        showToastNotification(`⏳ Configuração gravada no Central! O ${esp.name} está em repouso e receberá assim que acordar.`);
     } else {
-        // Se estiver ONLINE, aplica imediatamente
-        applySettingDirectly(esp, field, value);
-        showToastNotification(`Configuração aplicada com sucesso no ${esp.name}!`);
-        sendConfigToRemoteAPI(esp.id, field, value);
+        showToastNotification(`✓ Configuração enviada para ${esp.name}!`);
     }
+
+    // 5. Envia SEMPRE para a API REST do ESP Central (que cuida do despacho imediato ou fila ESP-NOW)
+    sendConfigToRemoteAPI(esp.id, field, apiValue);
 
     updateUI();
 }
 
 function applySettingDirectly(esp, field, value) {
     if (field === 'name') esp.name = value;
-    else if (field === 'interval') esp.interval = `${value} min`;
+    else if (field === 'interval') esp.interval = `${String(value).replace(/\D/g, '')} min`;
     else if (field === 'unit') esp.unit = value;
-    else if (field === 'mode') esp.mode = value;
+    else if (field === 'mode') {
+        if (value === 'DEEP_SLEEP' || value === 'DEEP SLEEP') esp.mode = 'DEEP SLEEP';
+        else if (value === 'LIGHT_SLEEP' || value === 'LIGHT SLEEP') esp.mode = 'LIGHT SLEEP';
+        else esp.mode = 'ONLINE';
+    }
     else if (field === 'powerSource') {
         esp.powerSource = value.type;
         if (value.capacity) esp.batteryCapacityMah = value.capacity;
@@ -1556,6 +1589,24 @@ async function fetchStatusFromESP32() {
                 if (localEsp && (localEsp.connectivity === 'DORMINDO' || localEsp.connectivity === 'OFFLINE') && remoteEsp.connectivity === 'ONLINE') {
                     processPendingQueueForEsp(remoteEsp);
                 }
+            });
+
+            // Preserva edições recentes locais se o Central/Periférico ainda não refletiu
+            remoteEsps.forEach(remoteEsp => {
+                ['name', 'interval', 'mode', 'unit'].forEach(f => {
+                    const pendingVal = getPendingLocalEdit(remoteEsp.id, f);
+                    if (pendingVal !== null) {
+                        if (f === 'interval') {
+                            remoteEsp.interval = `${String(pendingVal).replace(/\D/g, '')} min`;
+                        } else if (f === 'mode') {
+                            remoteEsp.mode = (pendingVal === 'DEEP_SLEEP' || pendingVal === 'DEEP SLEEP') ? 'DEEP SLEEP' : ((pendingVal === 'LIGHT_SLEEP' || pendingVal === 'LIGHT SLEEP') ? 'LIGHT SLEEP' : 'ONLINE');
+                        } else if (f === 'name') {
+                            remoteEsp.name = pendingVal;
+                        } else if (f === 'unit') {
+                            remoteEsp.unit = pendingVal;
+                        }
+                    }
+                });
             });
 
             // Apenas dados reais enviados pelo Central são exibidos

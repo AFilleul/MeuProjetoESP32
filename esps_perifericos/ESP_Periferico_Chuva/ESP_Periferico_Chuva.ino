@@ -84,7 +84,14 @@ void aplicarNovaConfiguracao(const PacoteConfiguracao& cfg) {
     }
 
     if (strlen(cfg.novoModo) > 0) {
-        strncpy(rtcModoOperacao, cfg.novoModo, sizeof(rtcModoOperacao) - 1);
+        if (strcmp(cfg.novoModo, "DEEP SLEEP") == 0 || strcmp(cfg.novoModo, "DEEP_SLEEP") == 0) {
+            strcpy(rtcModoOperacao, "DEEP_SLEEP");
+        } else if (strcmp(cfg.novoModo, "LIGHT SLEEP") == 0 || strcmp(cfg.novoModo, "LIGHT_SLEEP") == 0) {
+            strcpy(rtcModoOperacao, "LIGHT_SLEEP");
+        } else {
+            strncpy(rtcModoOperacao, cfg.novoModo, sizeof(rtcModoOperacao) - 1);
+            rtcModoOperacao[sizeof(rtcModoOperacao) - 1] = '\0';
+        }
         Serial.printf("  -> Novo Modo de Operação: %s\n", rtcModoOperacao);
     }
 

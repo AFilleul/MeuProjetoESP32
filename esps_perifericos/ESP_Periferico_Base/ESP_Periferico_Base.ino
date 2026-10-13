@@ -1,126 +1,106 @@
 #include <Arduino.h>
-#include <WiFi.h>
-#include <HTTPClient.h>
-
+#include "EspNowPeriferico.h"
 #include "config_periferico.h"
 
-// Credenciais Wi-Fi (da rede local ou do AP do ESP Central)
-const char* ssid = "SitioOnline_ESP32"; // ou sua rede Wi-Fi convencional
-const char* password = "12345678";
+// Instância modular do protocolo ESP-NOW para o periférico
+EspNowPeriferico espNowNode;
 
-// RTC Memory: variáveis mantidas mesmo durante o Deep Sleep
-RTC_DATA_ATTR int contagemLeituras = 0;
-RTC_DATA_ATTR float ultimaLeitura = 0.0;
+// Variáveis preservadas na memória RTC durante o Deep Sleep
+RTC_DATA_ATTR uint32_t bootCount = 0;
+RTC_DATA_ATTR uint32_t tempoUptimeAcumuladoSegundos = 0;
 
-// Leitura analógica calibrada (0 a 4095 convertido para 0 a 100%)
-float lerSensorUmidade() {
+// Leitura simulada/real do sensor de umidade de solo (GPIO configurado em config_periferico.h)
+float lerUmidadeSolo() {
     #ifdef PIN_SENSOR_VCC
     pinMode(PIN_SENSOR_VCC, OUTPUT);
-    digitalWrite(PIN_SENSOR_VCC, HIGH); // Liga o sensor apenas para leitura (economiza bateria)
-    delay(50);
+    digitalWrite(PIN_SENSOR_VCC, HIGH); // Liga o sensor apenas durante a medição
+    delay(30);
     #endif
 
-    int leituraRaw = analogRead(PIN_SENSOR_ANALOG);
+    int leituraAdc = analogRead(PIN_SENSOR_ANALOG);
 
     #ifdef PIN_SENSOR_VCC
-    digitalWrite(PIN_SENSOR_VCC, LOW); // Desliga alimentação do sensor
+    digitalWrite(PIN_SENSOR_VCC, LOW);  // Desliga o sensor para economizar corrente
     #endif
 
-    // Exemplo de calibração: 4095 (totalmente seco) -> 1200 (totalmente úmido)
-    float porcentagem = map(leituraRaw, 4095, 1200, 0, 100);
-    porcentagem = constrain(porcentagem, 0.0, 100.0);
-    return porcentagem;
+    // Calibração analógica: 4095 (Seco) -> 1200 (Encharcado)
+    float umidade = map(leituraAdc, 4095, 1200, 0, 100);
+    return constrain(umidade, 0.0, 100.0);
 }
 
-// Envia os dados para o ESP32 Central via REST HTTP POST
-bool enviarDadosAoCentral(float valorSensor) {
-    if (WiFi.status() != WL_CONNECTED) return false;
-
-    HTTPClient http;
-    String url = "http://" + String(CENTRAL_SERVER_HOST) + ":" + String(CENTRAL_SERVER_PORT) + "/api/data";
-    http.begin(url);
-    http.addHeader("Content-Type", "application/json");
-
-    String json = "{\n";
-    json += "  \"id\": \"" + String(NODE_ID) + "\",\n";
-    json += "  \"name\": \"" + String(NODE_NAME) + "\",\n";
-    json += "  \"sensorType\": \"" + String(SENSOR_TYPE) + "\",\n";
-    json += "  \"sensorValue\": \"" + String(valorSensor, 1) + " " + String(SENSOR_UNIT) + "\",\n";
-    json += "  \"mode\": \"" + String(OPERATING_MODE) + "\",\n";
-    json += "  \"powerSource\": \"" + String(POWER_SOURCE_TYPE) + "\",\n";
-    json += "  \"batteryCapacityMah\": " + String(BATTERY_CAPACITY_MAH) + ",\n";
-    json += "  \"uptimeCycle\": " + String(contagemLeituras) + "\n";
-    json += "}";
-
-    Serial.println("[Periferico] Enviando payload ao ESP Central:");
-    Serial.println(json);
-
-    int httpCode = http.POST(json);
-    bool sucesso = (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_CREATED);
-
-    if (sucesso) {
-        Serial.println("[Periferico] Dados enviados e aceitos pelo Central!");
-    } else {
-        Serial.printf("[Periferico] Falha no envio HTTP: %d\n", httpCode);
-    }
-
-    http.end();
-    return sucesso;
+// Estimativa da tensão da bateria Li-ion 18650 em mV e porcentagem
+void lerBateria(uint16_t &outMv, uint8_t &outPct) {
+    // Exemplo de leitura de divisor de tensão (3.7V - 4.2V típico)
+    outMv = 3950; // 3.95V (simulado ou lido de pino ADC dedicado)
+    outPct = (uint8_t)map(constrain(outMv, 3300, 4200), 3300, 4200, 0, 100);
 }
 
 void setup() {
     Serial.begin(115200);
-    delay(500);
+    delay(300);
 
-    contagemLeituras++;
-    Serial.printf("\n--- Nó Periférico: %s (Ciclo #%d) ---\n", NODE_ID, contagemLeituras);
+    bootCount++;
+    unsigned long tempoInicioMs = millis();
 
-    // 1. Faz a leitura do sensor
-    float valorUmidade = lerSensorUmidade();
-    ultimaLeitura = valorUmidade;
-    Serial.printf("[Sensor] Leitura: %.1f %s\n", valorUmidade, SENSOR_UNIT);
+    Serial.println("\n========================================================");
+    Serial.printf("  ESP32 PERIFÉRICO - NÓ SENSOR [%s]\n", NODE_ID);
+    Serial.printf("  Ciclo Wakeup Deep Sleep: #%u\n", bootCount);
+    Serial.println("========================================================");
 
-    // 2. Conecta ao Wi-Fi rapidamente
-    Serial.print("[Wi-Fi] Conectando a rede...");
-    WiFi.mode(WIFI_STA);
-    WiFi.begin(ssid, password);
-
-    unsigned long startMs = millis();
-    while (WiFi.status() != WL_CONNECTED && millis() - startMs < 10000) {
-        delay(200);
-        Serial.print(".");
+    // 1. Inicializa o rádio ESP-NOW
+    if (!espNowNode.iniciar(ESPNOW_WIFI_CHANNEL)) {
+        Serial.println("[Periferico] Erro ao iniciar rádio. Abortando para Deep Sleep...");
+        espNowNode.entrarDeepSleep(READ_INTERVAL_MIN);
+        return;
     }
 
-    if (WiFi.status() == WL_CONNECTED) {
-        Serial.println(" Conectado!");
-        Serial.print("[Wi-Fi] IP local: ");
-        Serial.println(WiFi.localIP());
+    // 2. Realiza as medições dos sensores locais
+    float umidade = lerUmidadeSolo();
+    uint16_t tensaoBateriaMv = 0;
+    uint8_t porcentagemBateria = 0;
+    lerBateria(tensaoBateriaMv, porcentagemBateria);
 
-        // 3. Envia os dados ao central
-        enviarDadosAoCentral(valorUmidade);
+    Serial.printf("[Sensores] Umidade do Solo: %.1f%% | Bateria: %d%% (%u mV)\n", 
+                  umidade, porcentagemBateria, tensaoBateriaMv);
+
+    // 3. Aguarda o pacote de Broadcast do ESP Central (Auto-Discovery do MAC)
+    Serial.println("[Periferico] Aguardando transmissao Broadcast do Central para descoberta de MAC...");
+    bool centralDescoberto = espNowNode.aguardarBeaconCentral(7000); // 7 segundos de janela de escuta
+
+    if (centralDescoberto) {
+        // 4. Monta o pacote de dados para envio Unicast direto ao MAC descoberto
+        PacoteDadosSensores pacote = {};
+        pacote.tipo = MSG_DADOS_SENSORES;
+        strncpy(pacote.nodeMac, espNowNode.getLocalMacString().c_str(), sizeof(pacote.nodeMac) - 1);
+        strncpy(pacote.nodeId, NODE_ID, sizeof(pacote.nodeId) - 1);
+        strncpy(pacote.nodeName, NODE_NAME, sizeof(pacote.nodeName) - 1);
+        pacote.sensorUmidade = umidade;
+        pacote.temperatura = 24.5; // Leitura de temperatura ambiente opcional
+        pacote.bateriaPct = porcentagemBateria;
+        pacote.bateriaMv = tensaoBateriaMv;
+        pacote.cicloWakeup = bootCount;
+        pacote.tempoUptimeSegundos = tempoUptimeAcumuladoSegundos + ((millis() - tempoInicioMs) / 1000);
+        strncpy(pacote.modoOperacao, OPERATING_MODE, sizeof(pacote.modoOperacao) - 1);
+
+        // 5. Envia via Unicast para o Central descoberto
+        Serial.printf("[Periferico] Transmitindo Unicast para o Central (%s)...\n", 
+                      espNowNode.getCentralMacString().c_str());
+        espNowNode.enviarDadosUnicast(pacote);
+
+        // Pequena pausa para garantir que os pacotes de rádio deixem o buffer do hardware
+        delay(100);
     } else {
-        Serial.println("\n[Wi-Fi] Timeout ao conectar. Prosseguindo...");
+        Serial.println("[Periferico] Central nao encontrado na janela de tempo.");
     }
 
-    // 4. Entra em modo de economia de energia
-    String modo = OPERATING_MODE;
-    if (modo == "DEEP_SLEEP") {
-        uint64_t tempoSonoMicros = (uint64_t)READ_INTERVAL_MIN * 60ULL * 1000000ULL;
-        Serial.printf("[Energia] Entrando em Deep Sleep por %d minutos...\n", READ_INTERVAL_MIN);
-        esp_sleep_enable_timer_wakeup(tempoSonoMicros);
-        esp_deep_sleep_start();
-    } else {
-        Serial.println("[Energia] Modo Online/Contínuo ativo.");
-    }
+    // 6. Atualiza tempo ativo acumulado na memória RTC
+    tempoUptimeAcumuladoSegundos += ((millis() - tempoInicioMs) / 1000) + 1;
+
+    // 7. Retorna imediatamente para o modo Deep Sleep para economizar bateria
+    Serial.printf("[Periferico] Ciclo concluído em %lu ms. Entrando em Deep Sleep...\n", millis() - tempoInicioMs);
+    espNowNode.entrarDeepSleep(READ_INTERVAL_MIN);
 }
 
 void loop() {
-    // Se o modo for ONLINE, executa periodicamente sem Deep Sleep
-    static unsigned long ultimoEnvio = 0;
-    if (millis() - ultimoEnvio > (unsigned long)READ_INTERVAL_MIN * 60000UL) {
-        ultimoEnvio = millis();
-        float valor = lerSensorUmidade();
-        enviarDadosAoCentral(valor);
-    }
-    delay(100);
+    // No modo Deep Sleep, o código nunca atinge o loop()
 }

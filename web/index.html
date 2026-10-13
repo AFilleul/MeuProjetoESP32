@@ -221,6 +221,11 @@
                         <span class="subopt-text">Definir modo</span>
                         <span class="subopt-value" id="val-preview-mode">(atual: ONLINE)</span>
                     </div>
+                    <div class="esp-subopt" data-opt="power" id="subopt-power">
+                        <span class="cursor-indicator">&gt;</span>
+                        <span class="subopt-text">Definir fonte de alimentação</span>
+                        <span class="subopt-value" id="val-preview-power">(atual: Bateria 2500 mAh)</span>
+                    </div>
                 </div>
 
                 <div class="sync-status-box" id="esp-sync-badge">
@@ -314,6 +319,75 @@
                     </div>
                     <div class="footer-action center">
                         <span>Aperte <strong>"0"</strong> para confirmar o modo</span>
+                    </div>
+                </footer>
+            </section>
+
+            <!-- TELA 8: SELETOR DE FONTE DE ALIMENTAÇÃO -->
+            <section id="screen-power-selector" class="screen-view subpage-view">
+                <div class="subpage-header">
+                    <h2 class="subpage-title">FONTE DE ALIMENTAÇÃO</h2>
+                    <h3 class="subpage-subtitle" id="power-esp-title">ESP 1</h3>
+                </div>
+
+                <div class="power-options-container" id="power-options-list">
+                    <div class="power-card active-target" data-power="BATTERY_2500" id="power-opt-bat2500">
+                        <span class="cursor-indicator">&gt;</span>
+                        <div class="power-icon">🔋</div>
+                        <div class="power-info">
+                            <h4>Bateria Li-ion 18650 (2500 mAh)</h4>
+                            <p>Célula padrão recarregável. Autonomia típica de meses em Deep Sleep.</p>
+                        </div>
+                    </div>
+                    <div class="power-card" data-power="BATTERY_5000" id="power-opt-bat5000">
+                        <span class="cursor-indicator">&gt;</span>
+                        <div class="power-icon">🔋🔋</div>
+                        <div class="power-info">
+                            <h4>Bateria Dupla / Banco Li-ion (5000 mAh)</h4>
+                            <p>2x células em paralelo ou LiPo de alta capacidade para estações remotas.</p>
+                        </div>
+                    </div>
+                    <div class="power-card" data-power="BATTERY_1200" id="power-opt-bat1200">
+                        <span class="cursor-indicator">&gt;</span>
+                        <div class="power-icon">🪫</div>
+                        <div class="power-info">
+                            <h4>Pilhas AA / Compacta (1200 mAh)</h4>
+                            <p>Pilhas convencionais ou célula compacta para medições temporárias.</p>
+                        </div>
+                    </div>
+                    <div class="power-card" data-power="DC" id="power-opt-dc">
+                        <span class="cursor-indicator">&gt;</span>
+                        <div class="power-icon">🔌</div>
+                        <div class="power-info">
+                            <h4>Fonte DC / Tomada (Rede Elétrica 5V/12V)</h4>
+                            <p>Alimentação contínua ininterrupta (sem bateria). Autonomia ilimitada (∞ Contínuo).</p>
+                        </div>
+                    </div>
+                    <div class="power-card" data-power="SOLAR" id="power-opt-solar">
+                        <span class="cursor-indicator">&gt;</span>
+                        <div class="power-icon">☀️</div>
+                        <div class="power-info">
+                            <h4>Painel Solar + Bateria (Híbrido)</h4>
+                            <p>Módulo solar com bateria tampão (2500 mAh). Sistema autossuficiente em campo.</p>
+                        </div>
+                    </div>
+                    <div class="power-card" data-power="CUSTOM_MAH" id="power-opt-custom">
+                        <span class="cursor-indicator">&gt;</span>
+                        <div class="power-icon">⚙️</div>
+                        <div class="power-info">
+                            <h4>Capacidade Personalizada (Editar mAh)</h4>
+                            <p>Definir capacidade específica da bateria em mAh usando o teclado virtual.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <footer class="subpage-footer-legend">
+                    <div class="footer-action left" id="btn-power-return">
+                        <span class="key-tag">"D"</span> RETORNAR
+                        <span class="arrow-sym">&lt;</span>
+                    </div>
+                    <div class="footer-action center">
+                        <span>Aperte <strong>"0"</strong> ou <strong>"A"</strong> para confirmar</span>
                     </div>
                 </footer>
             </section>

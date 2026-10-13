@@ -1,6 +1,6 @@
 /**
  * SÍTIO ONLINE - SISTEMA DE MONITORAMENTO AGRÍCOLA ESP32
- * Lógica Completa da Aplicação Web, Navegação Matricial 4x4 e Fila de Sincronização Offline
+ * Lógica Completa da Aplicação Web, Navegação Matricial 4x4, Fila Offline e Gestão de Energia/Bateria
  */
 
 // ============================================================================
@@ -8,7 +8,7 @@
 // ============================================================================
 
 const AppState = {
-    currentScreen: 'main-menu', // 'main-menu', 'status-p1', 'status-p2', 'config-list', 'esp-options', 'virtual-keyboard', 'mode-selector'
+    currentScreen: 'main-menu', // 'main-menu', 'status-p1', 'status-p2', 'config-list', 'esp-options', 'virtual-keyboard', 'mode-selector', 'power-selector'
     screenHistory: [],
     focusIndex: 0,
     selectedEspId: null,
@@ -32,7 +32,7 @@ const AppState = {
 
     // Teclado Virtual (Slide 8)
     vk: {
-        fieldKey: 'name', // 'name', 'interval', 'unit'
+        fieldKey: 'name', // 'name', 'interval', 'unit', 'batteryCapacity'
         fieldTitle: '(NOME SENDO DIGITADO)',
         text: 'ESP 1',
         activeRow: 1,
@@ -49,7 +49,7 @@ const AppState = {
     // Fila de Alterações Offline (Deep/Light Sleep)
     pendingQueue: [],
 
-    // Base de Dados dos Nós ESP32 Conectados (10 nós para teste de paginação vertical)
+    // Base de Dados dos Nós ESP32 Conectados com Fontes de Alimentação Diversificadas
     esps: [
         {
             id: 'esp-1',
@@ -64,6 +64,7 @@ const AppState = {
             unit: '% Umidade',
             batteryPct: 94,
             uptimeHours: 320,
+            powerSource: 'BATTERY', // 'BATTERY', 'DC', 'SOLAR'
             batteryCapacityMah: 2500
         },
         {
@@ -79,6 +80,7 @@ const AppState = {
             unit: '°C',
             batteryPct: 88,
             uptimeHours: 195,
+            powerSource: 'BATTERY',
             batteryCapacityMah: 2500
         },
         {
@@ -92,9 +94,10 @@ const AppState = {
             sensorValue: 'Seco (Sensor MH-RD)',
             interval: '1 min',
             unit: 'Estado Chuva',
-            batteryPct: 45,
+            batteryPct: 100,
             uptimeHours: 65,
-            batteryCapacityMah: 2500
+            powerSource: 'DC', // Fonte DC contínua na tomada
+            batteryCapacityMah: null
         },
         {
             id: 'esp-4',
@@ -109,7 +112,8 @@ const AppState = {
             unit: 'ADC',
             batteryPct: 76,
             uptimeHours: 540,
-            batteryCapacityMah: 2500
+            powerSource: 'BATTERY',
+            batteryCapacityMah: 5000 // Bateria Dupla Li-ion
         },
         {
             id: 'esp-5',
@@ -122,8 +126,9 @@ const AppState = {
             sensorValue: '12 km/h (Anemômetro)',
             interval: '15 min',
             unit: 'km/h',
-            batteryPct: 62,
+            batteryPct: 92,
             uptimeHours: 210,
+            powerSource: 'SOLAR', // Painel Solar + Bateria Híbrido
             batteryCapacityMah: 2500
         },
         {
@@ -137,9 +142,10 @@ const AppState = {
             sensorValue: '75% (Umidade Solo)',
             interval: '5 min',
             unit: '% Umidade',
-            batteryPct: 82,
+            batteryPct: 100,
             uptimeHours: 90,
-            batteryCapacityMah: 2500
+            powerSource: 'DC', // Tomada / Rede Elétrica
+            batteryCapacityMah: null
         },
         {
             id: 'esp-7',
@@ -154,7 +160,8 @@ const AppState = {
             unit: 'Estado Chuva',
             batteryPct: 91,
             uptimeHours: 310,
-            batteryCapacityMah: 2500
+            powerSource: 'BATTERY',
+            batteryCapacityMah: 1200 // Pilhas AA / Compacta
         },
         {
             id: 'esp-8',
@@ -169,7 +176,8 @@ const AppState = {
             unit: 'hPa',
             batteryPct: 85,
             uptimeHours: 420,
-            batteryCapacityMah: 2500
+            powerSource: 'BATTERY',
+            batteryCapacityMah: 5000 // Bateria Dupla
         },
         {
             id: 'esp-9',
@@ -184,6 +192,7 @@ const AppState = {
             unit: '% Umidade',
             batteryPct: 19,
             uptimeHours: 850,
+            powerSource: 'BATTERY',
             batteryCapacityMah: 2500
         },
         {
@@ -197,9 +206,10 @@ const AppState = {
             sensorValue: '420 W/m² (Radiação UV)',
             interval: '20 min',
             unit: 'W/m²',
-            batteryPct: 73,
+            batteryPct: 84,
             uptimeHours: 160,
-            batteryCapacityMah: 2500
+            powerSource: 'SOLAR', // Painel Solar + Bateria 3000 mAh
+            batteryCapacityMah: 3000
         }
     ],
 
@@ -310,18 +320,20 @@ function applySubpageBackdropOpacity() {
 }
 
 // ============================================================================
-// 5. CÁLCULO E ESTIMATIVA DE BATERIA DO ESP32
+// 5. CÁLCULO E ESTIMATIVA DE BATERIA DO ESP32 (COM SUPORTE A FONTES DE ENERGIA)
 // ============================================================================
 
 /**
  * Calcula a autonomia estimada e consumo médio do ESP32 com base:
- * - Capacidade nominal da bateria (padrão 18650 Li-ion 2500 mAh)
+ * - Fonte de Alimentação: Fonte DC (tomada), Painel Solar Híbrido ou Bateria
+ * - Capacidade configurada da bateria em mAh (ex: 1200, 2500, 5000 mAh)
  * - Porcentagem de carga atual (batteryPct)
  * - Modo operacional (ONLINE, LIGHT SLEEP, DEEP SLEEP)
  * - Ciclo de atividade e intervalo de medição/envio REST
  * - Tempo total acumulado em operação (uptimeHours)
  */
 function calculateBatteryEstimate(esp) {
+    const powerSource = (esp.powerSource || 'BATTERY').toUpperCase();
     const capacityTotal = esp.batteryCapacityMah || 2500; // mAh
     const pct = typeof esp.batteryPct === 'number' ? esp.batteryPct : 80;
     const remainingMah = (pct / 100) * capacityTotal;
@@ -349,6 +361,45 @@ function calculateBatteryEstimate(esp) {
         avgMa = 180.0; // ONLINE contínuo (rádio e CPU ligados)
     }
 
+    const uptimeH = esp.uptimeHours || 120;
+    let uptimeFormatted = '';
+    if (uptimeH < 24) {
+        uptimeFormatted = `${uptimeH}h`;
+    } else {
+        const d = Math.floor(uptimeH / 24);
+        const h = uptimeH % 24;
+        uptimeFormatted = `${d}d ${h}h`;
+    }
+
+    // Caso 1: Fonte DC / Tomada (Rede Elétrica contínua)
+    if (powerSource === 'DC') {
+        return {
+            pct: 100,
+            remainingHours: Infinity,
+            remainingFormatted: '∞ Contínuo (Fonte DC)',
+            uptimeHours: uptimeH,
+            uptimeFormatted,
+            avgMa: avgMa < 1 ? avgMa.toFixed(3) : avgMa.toFixed(1),
+            badgeClass: 'dc',
+            powerSourceLabel: 'Fonte DC 🔌'
+        };
+    }
+
+    // Caso 2: Painel Solar + Bateria (Híbrido Autossuficiente)
+    if (powerSource === 'SOLAR') {
+        return {
+            pct,
+            remainingHours: Infinity,
+            remainingFormatted: 'Autossuficiente (Solar)',
+            uptimeHours: uptimeH,
+            uptimeFormatted,
+            avgMa: avgMa < 1 ? avgMa.toFixed(3) : avgMa.toFixed(1),
+            badgeClass: 'solar',
+            powerSourceLabel: `Solar + ${capacityTotal}mAh ☀️`
+        };
+    }
+
+    // Caso 3: Bateria (Li-ion 18650, LiPo, Pilhas, etc.)
     const remainingHours = avgMa > 0 ? (remainingMah / avgMa) : 0;
 
     let remainingFormatted = '';
@@ -364,16 +415,6 @@ function calculateBatteryEstimate(esp) {
         remainingFormatted = `~${months} meses`;
     }
 
-    const uptimeH = esp.uptimeHours || 120;
-    let uptimeFormatted = '';
-    if (uptimeH < 24) {
-        uptimeFormatted = `${uptimeH}h`;
-    } else {
-        const d = Math.floor(uptimeH / 24);
-        const h = uptimeH % 24;
-        uptimeFormatted = `${d}d ${h}h`;
-    }
-
     let badgeClass = 'high';
     if (pct < 25) badgeClass = 'low';
     else if (pct < 60) badgeClass = 'medium';
@@ -385,7 +426,8 @@ function calculateBatteryEstimate(esp) {
         uptimeHours: uptimeH,
         uptimeFormatted,
         avgMa: avgMa < 1 ? avgMa.toFixed(3) : avgMa.toFixed(1),
-        badgeClass
+        badgeClass,
+        powerSourceLabel: `Bateria ${capacityTotal}mAh 🔋`
     };
 }
 
@@ -404,7 +446,8 @@ function updateUI() {
         'config-list': 'screen-config-list',
         'esp-options': 'screen-esp-options',
         'virtual-keyboard': 'screen-virtual-keyboard',
-        'mode-selector': 'screen-mode-selector'
+        'mode-selector': 'screen-mode-selector',
+        'power-selector': 'screen-power-selector'
     };
 
     const targetEl = document.getElementById(screenMap[AppState.currentScreen]);
@@ -432,6 +475,9 @@ function updateUI() {
             break;
         case 'mode-selector':
             renderModeSelector();
+            break;
+        case 'power-selector':
+            renderPowerSelector();
             break;
     }
 
@@ -557,14 +603,23 @@ function renderStatusP1() {
         const badgeClass = esp.connectivity.toLowerCase();
         const est = calculateBatteryEstimate(esp);
 
+        let badgeContent = '';
+        if (est.badgeClass === 'dc') {
+            badgeContent = '🔌 Rede DC (Contínuo)';
+        } else if (est.badgeClass === 'solar') {
+            badgeContent = `☀️ ${est.pct}% (Solar - ${esp.batteryCapacityMah || 2500}mAh)`;
+        } else {
+            badgeContent = `🔋 ${est.pct}% (${est.remainingFormatted})`;
+        }
+
         tr.innerHTML = `
             <td><strong>${esp.name}:</strong></td>
             <td><span class="badge-status ${badgeClass}">${esp.connectivity}</span></td>
             <td>${esp.mode}</td>
             <td>
                 <div class="battery-cell">
-                    <span class="battery-badge ${est.badgeClass}">🔋 ${est.pct}% (${est.remainingFormatted})</span>
-                    <span class="battery-subtext">${est.avgMa} mA méd. • ${est.uptimeFormatted} ativo</span>
+                    <span class="battery-badge ${est.badgeClass}">${badgeContent}</span>
+                    <span class="battery-subtext">${est.powerSourceLabel} • ${est.avgMa} mA méd. • ${est.uptimeFormatted} ativo</span>
                 </div>
             </td>
             <td>${esp.lastUpdate}</td>
@@ -615,7 +670,7 @@ function renderStatusP2() {
             <td><strong>${esp.name}:</strong></td>
             <td>${esp.nextUpdate}</td>
             <td><span style="color:#38bdf8; font-weight:600;">⚡ ~${est.avgMa} mA</span> <span style="font-size:0.75rem; color:#94a3b8;">(${esp.mode})</span></td>
-            <td><strong>🕒 ${est.uptimeFormatted}</strong> <span style="font-size:0.75rem; color:#94a3b8;">(${est.uptimeHours}h totais)</span></td>
+            <td><strong>🕒 ${est.uptimeFormatted}</strong> <span style="font-size:0.75rem; color:#94a3b8;">(${est.powerSourceLabel})</span></td>
             <td>${queueHtml}</td>
         `;
         tbody.appendChild(tr);
@@ -686,6 +741,12 @@ function renderEspOptions() {
     const modePreview = document.getElementById('val-preview-mode');
     if (modePreview) modePreview.textContent = `(atual: ${esp.mode})`;
 
+    const powerPreview = document.getElementById('val-preview-power');
+    if (powerPreview) {
+        const est = calculateBatteryEstimate(esp);
+        powerPreview.textContent = `(atual: ${est.powerSourceLabel})`;
+    }
+
     const subopts = document.querySelectorAll('.esp-subopt');
     subopts.forEach((opt, idx) => {
         if (idx === AppState.focusIndex) {
@@ -731,6 +792,37 @@ function renderModeSelector() {
             card.classList.add('selected', 'active-target');
         } else {
             card.classList.remove('selected', 'active-target');
+        }
+    });
+}
+
+// ----------------------------------------------------------------------------
+// Renderização do Seletor de Fonte de Alimentação (NOVA FUNCIONALIDADE)
+// ----------------------------------------------------------------------------
+function renderPowerSelector() {
+    const esp = AppState.esps.find(e => e.id === AppState.selectedEspId);
+    if (!esp) return;
+
+    const titleEl = document.getElementById('power-esp-title');
+    if (titleEl) {
+        const est = calculateBatteryEstimate(esp);
+        titleEl.textContent = `${esp.name} — Fonte atual: ${est.powerSourceLabel}`;
+    }
+
+    const cards = [
+        document.getElementById('power-opt-bat2500'),
+        document.getElementById('power-opt-bat5000'),
+        document.getElementById('power-opt-bat1200'),
+        document.getElementById('power-opt-dc'),
+        document.getElementById('power-opt-solar'),
+        document.getElementById('power-opt-custom')
+    ].filter(Boolean);
+
+    cards.forEach((card, idx) => {
+        if (idx === AppState.focusIndex) {
+            card.classList.add('active-target');
+        } else {
+            card.classList.remove('active-target');
         }
     });
 }
@@ -837,6 +929,9 @@ function handleKeypadPress(key) {
         case 'mode-selector':
             handleKeypadModeSelector(key);
             break;
+        case 'power-selector':
+            handleKeypadPowerSelector(key);
+            break;
     }
 }
 
@@ -921,7 +1016,7 @@ function selectEspForConfig(espId) {
 
 // --- Opções do ESP Selecionado (Slide 7) ---
 function handleKeypadEspOptions(key) {
-    const maxIdx = 3; // 4 opções: Renomear, Intervalo, Unidade, Modo
+    const maxIdx = 4; // 5 opções: Renomear (0), Intervalo (1), Unidade (2), Modo (3), Fonte de Alimentação (4)
 
     if (key === 'D') { // Retornar
         navigateBack();
@@ -943,6 +1038,8 @@ function handleKeypadEspOptions(key) {
             openVirtualKeyboard('unit', '(UNIDADE DE MEDIDA)', esp.unit);
         } else if (AppState.focusIndex === 3) {
             navigateTo('mode-selector');
+        } else if (AppState.focusIndex === 4) {
+            navigateTo('power-selector');
         }
     }
 }
@@ -963,6 +1060,40 @@ function handleKeypadModeSelector(key) {
         const selectedMode = modes[AppState.focusIndex];
         saveEspSetting('mode', selectedMode);
         navigateBack();
+    }
+}
+
+// --- Seletor de Fonte de Alimentação ---
+function handleKeypadPowerSelector(key) {
+    const powerOptions = [
+        { type: 'BATTERY', capacity: 2500, label: 'Bateria Li-ion 2500 mAh' },
+        { type: 'BATTERY', capacity: 5000, label: 'Bateria Dupla 5000 mAh' },
+        { type: 'BATTERY', capacity: 1200, label: 'Pilhas AA 1200 mAh' },
+        { type: 'DC', capacity: null, label: 'Fonte DC (Rede Elétrica)' },
+        { type: 'SOLAR', capacity: 2500, label: 'Painel Solar + Bateria' },
+        { type: 'CUSTOM_MAH', capacity: null, label: 'Capacidade Personalizada' }
+    ];
+
+    if (key === 'D') {
+        navigateBack();
+    } else if (key === 'B') {
+        AppState.focusIndex = Math.max(0, AppState.focusIndex - 1);
+        updateUI();
+    } else if (key === 'C') {
+        AppState.focusIndex = Math.min(powerOptions.length - 1, AppState.focusIndex + 1);
+        updateUI();
+    } else if (key === '0' || key === 'A') {
+        const selected = powerOptions[AppState.focusIndex];
+        const esp = AppState.esps.find(e => e.id === AppState.selectedEspId);
+        if (!esp) return;
+
+        if (selected.type === 'CUSTOM_MAH') {
+            // Abre o teclado virtual para digitar a capacidade em mAh
+            openVirtualKeyboard('batteryCapacity', '(CAPACIDADE EM mAh)', String(esp.batteryCapacityMah || 2500));
+        } else {
+            saveEspSetting('powerSource', selected);
+            navigateBack();
+        }
     }
 }
 
@@ -1044,6 +1175,8 @@ function saveEspSetting(field, value) {
 
     const isSleeping = esp.connectivity === 'DORMINDO';
 
+    let displayValue = typeof value === 'object' ? value.label : value;
+
     if (isSleeping) {
         // Enfileira na fila de pendências
         const pendingItem = {
@@ -1052,6 +1185,7 @@ function saveEspSetting(field, value) {
             espName: esp.name,
             field: field,
             value: value,
+            displayValue: displayValue,
             timestamp: new Date().toLocaleTimeString('pt-BR')
         };
 
@@ -1059,7 +1193,7 @@ function saveEspSetting(field, value) {
         AppState.pendingQueue = AppState.pendingQueue.filter(q => !(q.espId === esp.id && q.field === field));
         AppState.pendingQueue.push(pendingItem);
 
-        showToastNotification(`Configuração salva na fila offline! O ${esp.name} está em repouso e receberá assim que acordar.`);
+        showToastNotification(`Configuração na fila offline! O ${esp.name} está em repouso e receberá ao acordar.`);
         console.log('[OfflineSync] Comando enfileirado para nó dormindo:', pendingItem);
     } else {
         // Se estiver ONLINE, aplica imediatamente
@@ -1076,6 +1210,15 @@ function applySettingDirectly(esp, field, value) {
     else if (field === 'interval') esp.interval = `${value} min`;
     else if (field === 'unit') esp.unit = value;
     else if (field === 'mode') esp.mode = value;
+    else if (field === 'powerSource') {
+        esp.powerSource = value.type;
+        if (value.capacity) esp.batteryCapacityMah = value.capacity;
+        else if (value.type === 'DC') esp.batteryCapacityMah = null;
+    }
+    else if (field === 'batteryCapacity') {
+        esp.powerSource = 'BATTERY';
+        esp.batteryCapacityMah = Math.max(100, parseInt(value, 10) || 2500);
+    }
 }
 
 // Quando o nó dormindo acorda e reconecta, esvazia a fila de pendências
@@ -1429,6 +1572,14 @@ function setupEventListeners() {
         });
     }
 
+    const btnPowerRet = document.getElementById('btn-power-return');
+    if (btnPowerRet) {
+        btnPowerRet.addEventListener('click', (e) => {
+            e.preventDefault();
+            navigateBack();
+        });
+    }
+
     // 8. Teclado virtual rodapé
     const btnVkCancel = document.getElementById('btn-vk-cancel');
     if (btnVkCancel) {
@@ -1463,6 +1614,15 @@ function setupEventListeners() {
             handleKeypadModeSelector('0');
         });
     });
+
+    // 11. Clique nas fontes de alimentação
+    document.querySelectorAll('.power-card').forEach((el, idx) => {
+        el.addEventListener('click', (e) => {
+            e.preventDefault();
+            AppState.focusIndex = idx;
+            handleKeypadPowerSelector('0');
+        });
+    });
 }
 
 function openApiModal() {
@@ -1486,7 +1646,8 @@ function openApiModal() {
                 const div = document.createElement('div');
                 div.style.padding = '4px 0';
                 div.style.borderBottom = '1px solid #334155';
-                div.innerHTML = `<strong>${item.espName}:</strong> alterar <em>${item.field}</em> para "<strong>${item.value}</strong>" (${item.timestamp})`;
+                const valText = item.displayValue || item.value;
+                div.innerHTML = `<strong>${item.espName}:</strong> alterar <em>${item.field}</em> para "<strong>${valText}</strong>" (${item.timestamp})`;
                 queueListEl.appendChild(div);
             });
         }

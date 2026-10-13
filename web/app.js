@@ -894,17 +894,7 @@ function initVirtualKeyboardGrid() {
 // ============================================================================
 
 function handleKeypadPress(key) {
-    console.log(`[Keypad] Tecla acionada: "${key}" | Tela: ${AppState.currentScreen}`);
-
-    // Feedback visual na tecla correspondente do painel 4x4
-    const btn = document.querySelector(`.kpad-key[data-key="${key}"]`);
-    if (btn) {
-        btn.classList.add('pressed');
-        setTimeout(() => btn.classList.remove('pressed'), 140);
-    }
-
-    const lastKeyDisplay = document.getElementById('last-key-display');
-    if (lastKeyDisplay) lastKeyDisplay.textContent = key;
+    console.log(`[Comando] Tecla/Ação acionada: "${key}" | Tela: ${AppState.currentScreen}`);
 
     // Roteamento de comandos por tela
     switch (AppState.currentScreen) {
@@ -1359,12 +1349,120 @@ function simulateBackgroundEvents() {
 }
 
 // ============================================================================
-// 10. CONFIGURAÇÃO DE EVENTOS DO TECLADO DO PC E BOTÕES DA INTERFACE (SEGURO)
+// 10. NAVEGAÇÃO E COMANDOS DO COMPUTADOR (TECLADO PC & MOUSE)
 // ============================================================================
 
+function cycleStatusRowPage() {
+    const perPage = AppState.statusRowsPerPage || 5;
+    const totalRowPages = Math.max(1, Math.ceil(AppState.esps.length / perPage));
+    AppState.statusRowPage = (AppState.statusRowPage + 1) % totalRowPages;
+    showToastNotification(`Página de nós: Linhas ${AppState.statusRowPage + 1} de ${totalRowPages}`);
+    updateUI();
+}
+
+function navigateUp() {
+    switch (AppState.currentScreen) {
+        case 'main-menu':
+            AppState.focusIndex = 0;
+            updateUI();
+            break;
+        case 'config-list':
+            AppState.focusIndex = Math.max(0, AppState.focusIndex - 1);
+            updateUI();
+            break;
+        case 'esp-options':
+            AppState.focusIndex = Math.max(0, AppState.focusIndex - 1);
+            updateUI();
+            break;
+        case 'mode-selector':
+            AppState.focusIndex = Math.max(0, AppState.focusIndex - 1);
+            updateUI();
+            break;
+        case 'power-selector':
+            AppState.focusIndex = Math.max(0, AppState.focusIndex - 1);
+            updateUI();
+            break;
+    }
+}
+
+function navigateDown() {
+    switch (AppState.currentScreen) {
+        case 'main-menu':
+            AppState.focusIndex = 1;
+            updateUI();
+            break;
+        case 'status-p1':
+        case 'status-p2':
+            cycleStatusRowPage();
+            break;
+        case 'config-list':
+            AppState.focusIndex = Math.min(AppState.esps.length - 1, AppState.focusIndex + 1);
+            updateUI();
+            break;
+        case 'esp-options':
+            AppState.focusIndex = Math.min(4, AppState.focusIndex + 1);
+            updateUI();
+            break;
+        case 'mode-selector':
+            AppState.focusIndex = Math.min(2, AppState.focusIndex + 1);
+            updateUI();
+            break;
+        case 'power-selector':
+            AppState.focusIndex = Math.min(5, AppState.focusIndex + 1);
+            updateUI();
+            break;
+    }
+}
+
+function confirmCurrentSelection() {
+    switch (AppState.currentScreen) {
+        case 'main-menu':
+            if (AppState.focusIndex === 0) navigateTo('status-p1');
+            else navigateTo('config-list');
+            break;
+        case 'status-p1':
+            navigateTo('status-p2');
+            break;
+        case 'status-p2':
+            navigateBack();
+            break;
+        case 'config-list':
+            if (AppState.esps[AppState.focusIndex]) {
+                selectEspForConfig(AppState.esps[AppState.focusIndex].id);
+            }
+            break;
+        case 'esp-options':
+            handleKeypadEspOptions('0');
+            break;
+        case 'mode-selector':
+            handleKeypadModeSelector('0');
+            break;
+        case 'power-selector':
+            handleKeypadPowerSelector('0');
+            break;
+        case 'virtual-keyboard':
+            saveVirtualKeyboardValue();
+            break;
+    }
+}
+
 function setupEventListeners() {
-    // 1. Teclado Físico do Computador mapeado para o Teclado Matricial 4x4
+    // 1. Atalhos de Teclado do Computador (PC / Web)
     window.addEventListener('keydown', (e) => {
+        // Se o modal de API estiver aberto:
+        const modal = document.getElementById('modal-api-config');
+        if (modal && modal.classList.contains('open')) {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                modal.classList.remove('open');
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                const saveBtn = document.getElementById('btn-modal-save');
+                if (saveBtn) saveBtn.click();
+            }
+            return;
+        }
+
         // Se estiver no teclado virtual de digitação (Slide 8):
         if (AppState.currentScreen === 'virtual-keyboard') {
             if (e.key === 'Backspace') {
@@ -1373,8 +1471,7 @@ function setupEventListeners() {
                 return;
             } else if (e.key === 'Enter') {
                 e.preventDefault();
-                const selectedChar = AppState.vk.rows[AppState.vk.activeRow][AppState.vk.activeCol];
-                typeKey(selectedChar);
+                saveVirtualKeyboardValue();
                 return;
             } else if (e.key === 'Escape') {
                 e.preventDefault();
@@ -1384,65 +1481,106 @@ function setupEventListeners() {
                 e.preventDefault();
                 typeKey('ESPAÇO');
                 return;
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                handleKeypadVirtualKeyboard('A');
+                return;
+            } else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                handleKeypadVirtualKeyboard('D');
+                return;
+            } else if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                handleKeypadVirtualKeyboard('B');
+                return;
+            } else if (e.key === 'ArrowRight') {
+                e.preventDefault();
+                handleKeypadVirtualKeyboard('C');
+                return;
+            } else if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+                // Digitação direta no teclado virtual com qualquer tecla física do PC
+                e.preventDefault();
+                typeKey(e.key.toUpperCase());
+                return;
             }
         }
 
-        const keyMap = {
-            'ArrowUp': 'A',
-            'ArrowLeft': 'B',
-            'ArrowRight': 'C',
-            'ArrowDown': 'D',
-            'Enter': '0',
-            ' ': '0',
-            'Escape': '*',
-            'Backspace': 'APAGAR',
-            'a': 'A', 'A': 'A',
-            'b': 'B', 'B': 'B',
-            'c': 'C', 'C': 'C',
-            'd': 'D', 'D': 'D',
-            '0': '0', '1': '1', '2': '2', '3': '3', '4': '4',
-            '5': '5', '6': '6', '7': '7', '8': '8', '9': '9',
-            '*': '*', '#': '#'
-        };
+        // Navegação universal nas demais telas
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            navigateBack();
+            return;
+        }
 
-        if (keyMap[e.key]) {
-            handleKeypadPress(keyMap[e.key]);
-        } else if (AppState.currentScreen === 'virtual-keyboard' && e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
-            // Digitação direta no teclado virtual se for caractere imprimível
-            typeKey(e.key.toUpperCase());
+        if (e.key === 'Tab') {
+            e.preventDefault();
+            if (AppState.currentScreen === 'status-p1') navigateTo('status-p2');
+            else if (AppState.currentScreen === 'status-p2') navigateBack();
+            return;
+        }
+
+        if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') {
+            e.preventDefault();
+            navigateUp();
+            return;
+        }
+
+        if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') {
+            e.preventDefault();
+            navigateDown();
+            return;
+        }
+
+        if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+            if (AppState.currentScreen === 'status-p2') {
+                e.preventDefault();
+                navigateBack();
+                return;
+            }
+        }
+
+        if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+            if (AppState.currentScreen === 'status-p1') {
+                e.preventDefault();
+                navigateTo('status-p2');
+                return;
+            }
+        }
+
+        if (e.key === 'PageDown' || e.key === 'PageUp') {
+            e.preventDefault();
+            if (AppState.currentScreen === 'status-p1' || AppState.currentScreen === 'status-p2') {
+                cycleStatusRowPage();
+            }
+            return;
+        }
+
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            confirmCurrentSelection();
+            return;
+        }
+
+        // Seleção numérica rápida (1 a 9) na tela de configurações
+        if (AppState.currentScreen === 'config-list') {
+            const num = parseInt(e.key, 10);
+            if (!isNaN(num) && num >= 1 && num <= AppState.esps.length) {
+                e.preventDefault();
+                selectEspForConfig(AppState.esps[num - 1].id);
+                return;
+            }
+        }
+
+        // Suporte opcional a comandos legados
+        const legacyMap = {
+            'b': 'B', 'c': 'C', '0': '0', '*': '*', '#': '#'
+        };
+        if (legacyMap[e.key]) {
+            handleKeypadPress(legacyMap[e.key]);
         }
     });
 
-    // 2. Teclas do Widget Lateral 4x4 (Clique com o Mouse)
-    document.querySelectorAll('.kpad-key').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            const key = btn.dataset.key;
-            if (key) handleKeypadPress(key);
-        });
-    });
-
-    // 3. Controles de Cabeçalho e Painéis
-    const btnToggleKeypad = document.getElementById('btn-toggle-keypad');
-    if (btnToggleKeypad) {
-        btnToggleKeypad.addEventListener('click', (e) => {
-            e.preventDefault();
-            const panel = document.getElementById('keypad-sim-panel');
-            if (panel) panel.classList.toggle('hidden');
-        });
-    }
-
-    const btnCloseKeypad = document.getElementById('btn-close-keypad');
-    if (btnCloseKeypad) {
-        btnCloseKeypad.addEventListener('click', (e) => {
-            e.preventDefault();
-            const panel = document.getElementById('keypad-sim-panel');
-            if (panel) panel.classList.add('hidden');
-        });
-    }
-
-    // 4. Modal de API
+    // 2. Modal de API REST do ESP32
     const btnToggleApiModal = document.getElementById('btn-toggle-api-modal');
     if (btnToggleApiModal) {
         btnToggleApiModal.addEventListener('click', (e) => {
@@ -1487,7 +1625,7 @@ function setupEventListeners() {
         });
     }
 
-    // 5. Ações de clique nas opções do menu principal
+    // 3. Ações de clique com mouse nas opções do Menu Principal
     const menuStatus = document.getElementById('menu-opt-status');
     if (menuStatus) {
         menuStatus.addEventListener('click', (e) => {
@@ -1506,7 +1644,7 @@ function setupEventListeners() {
         });
     }
 
-    // 6. Ações de navegação do rodapé de Status
+    // 4. Ações de navegação nos botões de rodapé das telas de Status
     const btnStatusRet = document.getElementById('btn-status-return');
     if (btnStatusRet) {
         btnStatusRet.addEventListener('click', (e) => {
@@ -1535,7 +1673,7 @@ function setupEventListeners() {
     if (btnStatusScroll) {
         btnStatusScroll.addEventListener('click', (e) => {
             e.preventDefault();
-            handleKeypadPress('C');
+            cycleStatusRowPage();
         });
     }
 
@@ -1543,11 +1681,11 @@ function setupEventListeners() {
     if (btnStatusScrollP2) {
         btnStatusScrollP2.addEventListener('click', (e) => {
             e.preventDefault();
-            handleKeypadPress('C');
+            cycleStatusRowPage();
         });
     }
 
-    // 7. Retornos das demais telas
+    // 5. Botões de retorno com mouse das telas de Configuração
     const btnConfigRet = document.getElementById('btn-config-list-return');
     if (btnConfigRet) {
         btnConfigRet.addEventListener('click', (e) => {
@@ -1580,7 +1718,7 @@ function setupEventListeners() {
         });
     }
 
-    // 8. Teclado virtual rodapé
+    // 6. Botões do Teclado Virtual (Cancelar e Salvar)
     const btnVkCancel = document.getElementById('btn-vk-cancel');
     if (btnVkCancel) {
         btnVkCancel.addEventListener('click', (e) => {
@@ -1597,7 +1735,7 @@ function setupEventListeners() {
         });
     }
 
-    // 9. Clique nas subopções de configuração
+    // 7. Clique nas subopções de configuração do ESP
     document.querySelectorAll('.esp-subopt').forEach((el, idx) => {
         el.addEventListener('click', (e) => {
             e.preventDefault();
@@ -1606,7 +1744,7 @@ function setupEventListeners() {
         });
     });
 
-    // 10. Clique nos modos de energia
+    // 8. Clique nos modos de energia
     document.querySelectorAll('.mode-card').forEach((el, idx) => {
         el.addEventListener('click', (e) => {
             e.preventDefault();
@@ -1615,7 +1753,7 @@ function setupEventListeners() {
         });
     });
 
-    // 11. Clique nas fontes de alimentação
+    // 9. Clique nas fontes de alimentação
     document.querySelectorAll('.power-card').forEach((el, idx) => {
         el.addEventListener('click', (e) => {
             e.preventDefault();

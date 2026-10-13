@@ -32,7 +32,6 @@
                 <span id="queue-count-text">0 comandos na fila offline</span>
             </div>
             <div class="top-controls">
-                <button class="top-btn" id="btn-toggle-keypad" title="Mostrar/Ocultar Teclado 4x4 Virtual">⌨️ Teclado 4x4</button>
                 <button class="top-btn" id="btn-toggle-api-modal" title="Configurar IP do ESP32">⚙️ Conexão API</button>
             </div>
         </header>
@@ -46,12 +45,12 @@
                 </div>
 
                 <div class="menu-options-container">
-                    <div class="menu-option active-target" data-action="go-status" id="menu-opt-status">
+                    <div class="menu-option active-target" data-action="go-status" id="menu-opt-status" title="Clique ou use Enter para abrir Status">
                         <span class="cursor-indicator">&gt;</span>
                         <span class="bullet">•</span>
                         <span class="opt-label">Status</span>
                     </div>
-                    <div class="menu-option" data-action="go-config" id="menu-opt-config">
+                    <div class="menu-option" data-action="go-config" id="menu-opt-config" title="Clique ou use Enter para abrir Configurações">
                         <span class="cursor-indicator">&gt;</span>
                         <span class="bullet">•</span>
                         <span class="opt-label">Configurar</span>
@@ -67,10 +66,10 @@
                 </div>
 
                 <footer class="screen-footer-legend">
-                    <div class="legend-col">
-                        <span>Aperte <strong>"A"</strong> ou <strong>"0"</strong> para selecionar</span>
-                        <span>Aperte <strong>"B"</strong> para subir</span>
-                        <span>Aperte <strong>"C"</strong> para descer</span>
+                    <div class="legend-pc-controls">
+                        <span class="control-badge"><kbd>↑</kbd> <kbd>↓</kbd> Navegar</span>
+                        <span class="control-badge"><kbd>Enter</kbd> Selecionar</span>
+                        <span class="control-badge mouse-hint">🖱️ Clique com o mouse para acessar</span>
                     </div>
                 </footer>
             </section>
@@ -107,18 +106,15 @@
                 </div>
 
                 <footer class="subpage-footer-legend">
-                    <div class="footer-action left" id="btn-status-return">
-                        <span class="key-tag">"D"</span> RETORNAR
-                        <span class="arrow-sym">&lt;</span>
-                    </div>
-                    <div class="footer-action center" id="btn-status-scroll">
-                        <span class="key-tag">"C"</span> DESCER (MAIS ESPs)
-                        <span class="arrow-sym">v</span>
-                    </div>
-                    <div class="footer-action right" id="btn-status-next-page">
-                        <span class="key-tag">"B"</span> PRÓXIMA PÁGINA (COLUNAS)
-                        <span class="arrow-sym">&gt;</span>
-                    </div>
+                    <button class="footer-btn action-return" id="btn-status-return" title="Retornar ao Menu Principal (Esc)">
+                        <span class="btn-icon">&lt;</span> RETORNAR <span class="key-tag">Esc</span>
+                    </button>
+                    <button class="footer-btn action-scroll" id="btn-status-scroll" title="Descer e mostrar mais microcontroladores (Seta Baixo ou C)">
+                        <span class="btn-icon">v</span> MAIS LINHAS / ESPs <span class="key-tag">↓</span>
+                    </button>
+                    <button class="footer-btn action-next" id="btn-status-next-page" title="Ver próximas colunas de status (Tab ou Seta Direita)">
+                        PRÓXIMA PÁGINA (COLUNAS) <span class="key-tag">Tab / &gt;</span> <span class="btn-icon">&gt;</span>
+                    </button>
                 </footer>
             </section>
 
@@ -150,14 +146,12 @@
                 </div>
 
                 <footer class="subpage-footer-legend">
-                    <div class="footer-action left" id="btn-status-prev-page">
-                        <span class="key-tag">"D"</span> PÁGINA ANTERIOR (COLUNAS)
-                        <span class="arrow-sym">&lt;</span>
-                    </div>
-                    <div class="footer-action center" id="btn-status-scroll-p2">
-                        <span class="key-tag">"C"</span> DESCER (MAIS ESPs)
-                        <span class="arrow-sym">v</span>
-                    </div>
+                    <button class="footer-btn action-return" id="btn-status-prev-page" title="Retornar à página anterior de colunas (Esc ou Seta Esquerda)">
+                        <span class="btn-icon">&lt;</span> PÁGINA ANTERIOR <span class="key-tag">Esc / &lt;</span>
+                    </button>
+                    <button class="footer-btn action-scroll" id="btn-status-scroll-p2" title="Descer e mostrar mais microcontroladores (Seta Baixo ou C)">
+                        <span class="btn-icon">v</span> MAIS LINHAS / ESPs <span class="key-tag">↓</span>
+                    </button>
                 </footer>
             </section>
 
@@ -169,8 +163,8 @@
 
                 <div class="config-selection-area">
                     <div class="config-instruction-banner">
-                        <span id="config-instruction-text">1 A 7 PARA SELECIONAR</span>
-                        <small class="instruction-sub">ou use as setas e "0" para confirmar</small>
+                        <span id="config-instruction-text">CLIQUE NO ESP OU DIGITE 1 A 7</span>
+                        <small class="instruction-sub">ou use as setas ↑ ↓ e Enter para confirmar</small>
                     </div>
 
                     <div class="esp-list-cards" id="esp-config-list-container">
@@ -183,13 +177,13 @@
                 </div>
 
                 <footer class="subpage-footer-legend">
-                    <div class="footer-action left" id="btn-config-list-return">
-                        <span class="key-tag">"D"</span> RETORNAR
-                        <span class="arrow-sym">&lt;</span>
-                    </div>
-                    <div class="footer-action center">
-                        <span class="key-tag">"C"</span> DESCER
-                        <span class="arrow-sym">v</span>
+                    <button class="footer-btn action-return" id="btn-config-list-return" title="Retornar ao Menu Principal (Esc)">
+                        <span class="btn-icon">&lt;</span> RETORNAR <span class="key-tag">Esc</span>
+                    </button>
+                    <div class="legend-pc-controls">
+                        <span class="control-badge"><kbd>↑</kbd> <kbd>↓</kbd> Navegar</span>
+                        <span class="control-badge"><kbd>Enter</kbd> Selecionar ESP</span>
+                        <span class="control-badge mouse-hint">🖱️ Clique direto no card</span>
                     </div>
                 </footer>
             </section>
@@ -202,26 +196,26 @@
                 </div>
 
                 <div class="esp-suboptions-list">
-                    <div class="esp-subopt active-target" data-opt="rename" id="subopt-rename">
+                    <div class="esp-subopt active-target" data-opt="rename" id="subopt-rename" title="Clique ou use Enter para Renomear">
                         <span class="cursor-indicator">&gt;</span>
                         <span class="subopt-text">Renomear</span>
                     </div>
-                    <div class="esp-subopt" data-opt="interval" id="subopt-interval">
+                    <div class="esp-subopt" data-opt="interval" id="subopt-interval" title="Clique ou use Enter para Definir intervalo">
                         <span class="cursor-indicator">&gt;</span>
                         <span class="subopt-text">Definir intervalo de leitura</span>
                         <span class="subopt-value" id="val-preview-interval">(atual: 60s)</span>
                     </div>
-                    <div class="esp-subopt" data-opt="unit" id="subopt-unit">
+                    <div class="esp-subopt" data-opt="unit" id="subopt-unit" title="Clique ou use Enter para Definir unidade">
                         <span class="cursor-indicator">&gt;</span>
                         <span class="subopt-text">Definir unidade de medida</span>
                         <span class="subopt-value" id="val-preview-unit">(atual: % Umidade)</span>
                     </div>
-                    <div class="esp-subopt" data-opt="mode" id="subopt-mode">
+                    <div class="esp-subopt" data-opt="mode" id="subopt-mode" title="Clique ou use Enter para Definir modo de energia">
                         <span class="cursor-indicator">&gt;</span>
                         <span class="subopt-text">Definir modo</span>
                         <span class="subopt-value" id="val-preview-mode">(atual: ONLINE)</span>
                     </div>
-                    <div class="esp-subopt" data-opt="power" id="subopt-power">
+                    <div class="esp-subopt" data-opt="power" id="subopt-power" title="Clique ou use Enter para Definir fonte de alimentação">
                         <span class="cursor-indicator">&gt;</span>
                         <span class="subopt-text">Definir fonte de alimentação</span>
                         <span class="subopt-value" id="val-preview-power">(atual: Bateria 2500 mAh)</span>
@@ -234,14 +228,13 @@
                 </div>
 
                 <footer class="subpage-footer-legend">
-                    <div class="footer-action left" id="btn-esp-options-return">
-                        <span class="key-tag">"D"</span> RETORNAR
-                        <span class="arrow-sym">&lt;</span>
-                    </div>
-                    <div class="footer-action-inline">
-                        <span>Aperte <strong>"A"</strong> ou <strong>"0"</strong> para selecionar</span>
-                        <span>Aperte <strong>"B"</strong> para subir</span>
-                        <span>Aperte <strong>"C"</strong> para descer</span>
+                    <button class="footer-btn action-return" id="btn-esp-options-return" title="Retornar à lista de ESPs (Esc)">
+                        <span class="btn-icon">&lt;</span> RETORNAR <span class="key-tag">Esc</span>
+                    </button>
+                    <div class="legend-pc-controls">
+                        <span class="control-badge"><kbd>↑</kbd> <kbd>↓</kbd> Navegar</span>
+                        <span class="control-badge"><kbd>Enter</kbd> Selecionar Opção</span>
+                        <span class="control-badge mouse-hint">🖱️ Clique direto na opção</span>
                     </div>
                 </footer>
             </section>
@@ -261,22 +254,19 @@
                     <!-- Gerado dinamicamente via JS com linha de números, QWERTYUIOP, etc. -->
                 </div>
 
-                <div class="vk-dpad-guide">
-                    <div class="dpad-up">▲ "A"</div>
-                    <div class="dpad-mid">
-                        <span>◄ "B"</span>
-                        <span class="dpad-center">[ 0 ] SELECIONAR</span>
-                        <span>"C" ►</span>
-                    </div>
-                    <div class="dpad-down">▼ "D"</div>
+                <div class="vk-pc-guide">
+                    <div class="vk-guide-item"><span class="key-tag">Teclado PC</span> Digitação direta de letras, números e símbolos</div>
+                    <div class="vk-guide-item"><span class="key-tag">Enter</span> Salvar</div>
+                    <div class="vk-guide-item"><span class="key-tag">Backspace</span> Apagar</div>
+                    <div class="vk-guide-item"><span class="key-tag">Esc</span> Cancelar</div>
                 </div>
 
                 <footer class="vk-footer-controls">
-                    <button class="vk-btn-cancel" id="btn-vk-cancel">
-                        <span class="key-badge">"*"</span> CANCELAR
+                    <button class="vk-btn-cancel" id="btn-vk-cancel" title="Cancelar e voltar (Esc)">
+                        <span class="key-badge">Esc</span> CANCELAR
                     </button>
-                    <button class="vk-btn-save" id="btn-vk-save">
-                        <span class="key-badge">"#"</span> SALVAR
+                    <button class="vk-btn-save" id="btn-vk-save" title="Salvar alteração (Enter)">
+                        <span class="key-badge">Enter</span> SALVAR
                     </button>
                 </footer>
             </section>
@@ -289,21 +279,21 @@
                 </div>
 
                 <div class="mode-options-container" id="mode-options-list">
-                    <div class="mode-card active-target" data-mode="ONLINE" id="mode-opt-online">
+                    <div class="mode-card active-target" data-mode="ONLINE" id="mode-opt-online" title="Clique ou use Enter para confirmar">
                         <span class="cursor-indicator">&gt;</span>
                         <div class="mode-info">
                             <h4>ONLINE (Contínuo)</h4>
                             <p>ESP32 sempre ativo, responde imediatamente a requisições e comandos.</p>
                         </div>
                     </div>
-                    <div class="mode-card" data-mode="LIGHT SLEEP" id="mode-opt-light">
+                    <div class="mode-card" data-mode="LIGHT SLEEP" id="mode-opt-light" title="Clique ou use Enter para confirmar">
                         <span class="cursor-indicator">&gt;</span>
                         <div class="mode-info">
                             <h4>LIGHT SLEEP</h4>
                             <p>Economia moderada. Acorda periodicamente ou via interrupção de pino.</p>
                         </div>
                     </div>
-                    <div class="mode-card" data-mode="DEEP SLEEP" id="mode-opt-deep">
+                    <div class="mode-card" data-mode="DEEP SLEEP" id="mode-opt-deep" title="Clique ou use Enter para confirmar">
                         <span class="cursor-indicator">&gt;</span>
                         <div class="mode-info">
                             <h4>DEEP SLEEP</h4>
@@ -313,12 +303,13 @@
                 </div>
 
                 <footer class="subpage-footer-legend">
-                    <div class="footer-action left" id="btn-mode-return">
-                        <span class="key-tag">"D"</span> RETORNAR
-                        <span class="arrow-sym">&lt;</span>
-                    </div>
-                    <div class="footer-action center">
-                        <span>Aperte <strong>"0"</strong> para confirmar o modo</span>
+                    <button class="footer-btn action-return" id="btn-mode-return" title="Retornar às opções (Esc)">
+                        <span class="btn-icon">&lt;</span> RETORNAR <span class="key-tag">Esc</span>
+                    </button>
+                    <div class="legend-pc-controls">
+                        <span class="control-badge"><kbd>↑</kbd> <kbd>↓</kbd> Navegar</span>
+                        <span class="control-badge"><kbd>Enter</kbd> Confirmar Modo</span>
+                        <span class="control-badge mouse-hint">🖱️ Clique no modo para selecionar</span>
                     </div>
                 </footer>
             </section>
@@ -331,7 +322,7 @@
                 </div>
 
                 <div class="power-options-container" id="power-options-list">
-                    <div class="power-card active-target" data-power="BATTERY_2500" id="power-opt-bat2500">
+                    <div class="power-card active-target" data-power="BATTERY_2500" id="power-opt-bat2500" title="Clique ou use Enter para confirmar">
                         <span class="cursor-indicator">&gt;</span>
                         <div class="power-icon">🔋</div>
                         <div class="power-info">
@@ -339,7 +330,7 @@
                             <p>Célula padrão recarregável. Autonomia típica de meses em Deep Sleep.</p>
                         </div>
                     </div>
-                    <div class="power-card" data-power="BATTERY_5000" id="power-opt-bat5000">
+                    <div class="power-card" data-power="BATTERY_5000" id="power-opt-bat5000" title="Clique ou use Enter para confirmar">
                         <span class="cursor-indicator">&gt;</span>
                         <div class="power-icon">🔋🔋</div>
                         <div class="power-info">
@@ -347,7 +338,7 @@
                             <p>2x células em paralelo ou LiPo de alta capacidade para estações remotas.</p>
                         </div>
                     </div>
-                    <div class="power-card" data-power="BATTERY_1200" id="power-opt-bat1200">
+                    <div class="power-card" data-power="BATTERY_1200" id="power-opt-bat1200" title="Clique ou use Enter para confirmar">
                         <span class="cursor-indicator">&gt;</span>
                         <div class="power-icon">🪫</div>
                         <div class="power-info">
@@ -355,7 +346,7 @@
                             <p>Pilhas convencionais ou célula compacta para medições temporárias.</p>
                         </div>
                     </div>
-                    <div class="power-card" data-power="DC" id="power-opt-dc">
+                    <div class="power-card" data-power="DC" id="power-opt-dc" title="Clique ou use Enter para confirmar">
                         <span class="cursor-indicator">&gt;</span>
                         <div class="power-icon">🔌</div>
                         <div class="power-info">
@@ -363,7 +354,7 @@
                             <p>Alimentação contínua ininterrupta (sem bateria). Autonomia ilimitada (∞ Contínuo).</p>
                         </div>
                     </div>
-                    <div class="power-card" data-power="SOLAR" id="power-opt-solar">
+                    <div class="power-card" data-power="SOLAR" id="power-opt-solar" title="Clique ou use Enter para confirmar">
                         <span class="cursor-indicator">&gt;</span>
                         <div class="power-icon">☀️</div>
                         <div class="power-info">
@@ -371,65 +362,28 @@
                             <p>Módulo solar com bateria tampão (2500 mAh). Sistema autossuficiente em campo.</p>
                         </div>
                     </div>
-                    <div class="power-card" data-power="CUSTOM_MAH" id="power-opt-custom">
+                    <div class="power-card" data-power="CUSTOM_MAH" id="power-opt-custom" title="Clique ou use Enter para digitar capacidade">
                         <span class="cursor-indicator">&gt;</span>
                         <div class="power-icon">⚙️</div>
                         <div class="power-info">
                             <h4>Capacidade Personalizada (Editar mAh)</h4>
-                            <p>Definir capacidade específica da bateria em mAh usando o teclado virtual.</p>
+                            <p>Definir capacidade específica da bateria em mAh usando o teclado virtual ou teclado do PC.</p>
                         </div>
                     </div>
                 </div>
 
                 <footer class="subpage-footer-legend">
-                    <div class="footer-action left" id="btn-power-return">
-                        <span class="key-tag">"D"</span> RETORNAR
-                        <span class="arrow-sym">&lt;</span>
-                    </div>
-                    <div class="footer-action center">
-                        <span>Aperte <strong>"0"</strong> ou <strong>"A"</strong> para confirmar</span>
+                    <button class="footer-btn action-return" id="btn-power-return" title="Retornar às opções (Esc)">
+                        <span class="btn-icon">&lt;</span> RETORNAR <span class="key-tag">Esc</span>
+                    </button>
+                    <div class="legend-pc-controls">
+                        <span class="control-badge"><kbd>↑</kbd> <kbd>↓</kbd> Navegar</span>
+                        <span class="control-badge"><kbd>Enter</kbd> Confirmar Fonte</span>
+                        <span class="control-badge mouse-hint">🖱️ Clique no card para selecionar</span>
                     </div>
                 </footer>
             </section>
         </main>
-
-        <!-- WIDGET LATERAL: SIMULADOR DE TECLADO MATRICIAL 4X4 FÍSICO -->
-        <aside class="keypad-sim-panel" id="keypad-sim-panel">
-            <div class="keypad-sim-header">
-                <div class="keypad-title">
-                    <span class="keypad-icon">⌨️</span>
-                    <span>Teclado Matricial 4x4</span>
-                </div>
-                <button class="keypad-close-btn" id="btn-close-keypad">✕</button>
-            </div>
-            <p class="keypad-sim-hint">Simula o teclado de membrana conectado ao ESP32. Clique nas teclas ou digite no teclado do PC.</p>
-            
-            <div class="membrane-keypad-grid">
-                <button class="kpad-key" data-key="1">1</button>
-                <button class="kpad-key" data-key="2">2</button>
-                <button class="kpad-key" data-key="3">3</button>
-                <button class="kpad-key kpad-func" data-key="A" title="A: Selecionar / Cima">A</button>
-
-                <button class="kpad-key" data-key="4">4</button>
-                <button class="kpad-key" data-key="5">5</button>
-                <button class="kpad-key" data-key="6">6</button>
-                <button class="kpad-key kpad-func" data-key="B" title="B: Subir / Próxima Página / Esquerda">B</button>
-
-                <button class="kpad-key" data-key="7">7</button>
-                <button class="kpad-key" data-key="8">8</button>
-                <button class="kpad-key" data-key="9">9</button>
-                <button class="kpad-key kpad-func" data-key="C" title="C: Descer / Direita">C</button>
-
-                <button class="kpad-key kpad-danger" data-key="*" title="*: Cancelar">*</button>
-                <button class="kpad-key kpad-select" data-key="0" title="0: Selecionar / Confirmar">0</button>
-                <button class="kpad-key kpad-success" data-key="#" title="#: Salvar">#</button>
-                <button class="kpad-key kpad-func" data-key="D" title="D: Retornar / Baixo">D</button>
-            </div>
-
-            <div class="keypad-last-pressed">
-                Última tecla: <strong id="last-key-display">-</strong>
-            </div>
-        </aside>
 
         <!-- MODAL DE CONFIGURAÇÃO DA API REST DO ESP32 -->
         <div class="modal-backdrop" id="modal-api-config">

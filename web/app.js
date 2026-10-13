@@ -847,7 +847,17 @@ function renderConfigList() {
             <span class="esp-num">${esp.num}</span>
             <span class="esp-name">${esp.name}</span>
             <span class="badge-status ${esp.connectivity.toLowerCase()}" style="margin-left:auto;">${esp.connectivity}</span>
+            <button class="esp-card-delete-btn" title="Apagar periférico ${esp.name}">🗑️</button>
         `;
+
+        const deleteBtn = card.querySelector('.esp-card-delete-btn');
+        if (deleteBtn) {
+            deleteBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                openDeleteModal(esp.id);
+            });
+        }
 
         card.addEventListener('mousemove', (e) => {
             if (mouseMoved(e) && AppState.focusIndex !== idx) {
@@ -1157,7 +1167,7 @@ function selectEspForConfig(espId) {
 
 // --- Opções do ESP Selecionado (Slide 7) ---
 function handleKeypadEspOptions(key) {
-    const maxIdx = 4; // 5 opções: Renomear (0), Intervalo (1), Unidade (2), Modo (3), Fonte de Alimentação (4)
+    const maxIdx = 5; // 6 opções: Renomear (0), Intervalo (1), Unidade (2), Modo (3), Fonte de Alimentação (4), Apagar (5)
 
     if (key === 'D') { // Retornar
         navigateBack();
@@ -1181,6 +1191,8 @@ function handleKeypadEspOptions(key) {
             navigateTo('mode-selector');
         } else if (AppState.focusIndex === 4) {
             navigateTo('power-selector');
+        } else if (AppState.focusIndex === 5) {
+            openDeleteModal(esp.id);
         }
     }
 }
@@ -1378,6 +1390,77 @@ function processPendingQueueForEsp(esp) {
     AppState.pendingQueue = AppState.pendingQueue.filter(q => q.espId !== esp.id);
 
     showToastNotification(`⚡ Sincronização concluída: ${items.length} alteração(ões) entregue(s) ao ${esp.name}!`);
+    updateUI();
+}
+
+// ============================================================================
+// EXCLUSÃO / APAGAR PERIFÉRICO DO SISTEMA
+// ============================================================================
+
+function openDeleteModal(espId) {
+    const esp = AppState.esps.find(e => e.id === espId) || AppState.esps[AppState.focusIndex];
+    if (!esp) return;
+
+    AppState.pendingDeleteEspId = esp.id;
+    const nameEl = document.getElementById('delete-esp-name');
+    if (nameEl) nameEl.textContent = `${esp.name} (${esp.id})`;
+
+    const modal = document.getElementById('modal-confirm-delete');
+    if (modal) modal.classList.add('open');
+}
+
+function closeDeleteModal() {
+    AppState.pendingDeleteEspId = null;
+    const modal = document.getElementById('modal-confirm-delete');
+    if (modal) modal.classList.remove('open');
+}
+
+async function executeDeleteEsp() {
+    const espId = AppState.pendingDeleteEspId || AppState.selectedEspId;
+    if (!espId) {
+        closeDeleteModal();
+        return;
+    }
+
+    const esp = AppState.esps.find(e => e.id === espId);
+    const espName = esp ? esp.name : espId;
+
+    // 1. Remove da lista local no AppState
+    AppState.esps = AppState.esps.filter(e => e.id !== espId);
+
+    // 2. Remove comandos pendentes na fila offline relacionados a este nó
+    AppState.pendingQueue = AppState.pendingQueue.filter(q => q.espId !== espId);
+
+    // 3. Se estiver conectado ao ESP Central, envia comando de exclusão via REST
+    if (!AppState.api.simulatorMode) {
+        try {
+            await fetch(`${AppState.api.baseUrl}/api/device/delete`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: espId })
+            });
+            console.log(`[Delete] Nó ${espId} removido do registro do ESP Central.`);
+        } catch (err) {
+            console.warn('[Delete] Falha ao notificar remoção ao ESP Central:', err.message);
+        }
+    }
+
+    closeDeleteModal();
+
+    // 4. Se estiver na tela de opções do ESP apagado, retorna para a lista
+    if (AppState.currentScreen === 'esp-options') {
+        AppState.selectedEspId = null;
+        navigateBack();
+    }
+
+    AppState.focusIndex = 0;
+
+    // 5. Registra nas notificações
+    const msg = `🗑️ Periférico "${espName}" foi apagado com sucesso do sistema.`;
+    AppState.notifications.unshift(msg);
+    if (AppState.notifications.length > 5) AppState.notifications.pop();
+
+    showToastNotification(`🗑️ ${espName} apagado com sucesso!`);
     updateUI();
 }
 
@@ -1768,6 +1851,19 @@ function confirmCurrentSelection() {
 function setupEventListeners() {
     // 1. Atalhos de Teclado do Computador (PC / Web)
     window.addEventListener('keydown', (e) => {
+        // Se o modal de confirmação de exclusão estiver aberto:
+        const deleteModal = document.getElementById('modal-confirm-delete');
+        if (deleteModal && deleteModal.classList.contains('open')) {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                closeDeleteModal();
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                executeDeleteEsp();
+            }
+            return;
+        }
+
         // Se o modal de API estiver aberto:
         const modal = document.getElementById('modal-api-config');
         if (modal && modal.classList.contains('open')) {
@@ -1955,6 +2051,31 @@ function setupEventListeners() {
             if (modal) modal.classList.remove('open');
             updateUI();
             showToastNotification('Configurações da API atualizadas!');
+        });
+    }
+
+    // Botões do Modal de Confirmação de Exclusão de Periférico
+    const btnCloseDel = document.getElementById('btn-close-delete-modal');
+    if (btnCloseDel) {
+        btnCloseDel.addEventListener('click', (e) => {
+            e.preventDefault();
+            closeDeleteModal();
+        });
+    }
+
+    const btnCancelDel = document.getElementById('btn-cancel-delete');
+    if (btnCancelDel) {
+        btnCancelDel.addEventListener('click', (e) => {
+            e.preventDefault();
+            closeDeleteModal();
+        });
+    }
+
+    const btnConfirmDel = document.getElementById('btn-confirm-delete');
+    if (btnConfirmDel) {
+        btnConfirmDel.addEventListener('click', (e) => {
+            e.preventDefault();
+            executeDeleteEsp();
         });
     }
 

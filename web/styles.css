@@ -1339,7 +1339,60 @@ kbd {
     color: #f8fafc;
 }
 
+.modal-btn.danger {
+    background: #ef4444;
+    color: #ffffff;
+}
+
+.modal-btn.danger:hover {
+    background: #dc2626;
+    box-shadow: 0 0 15px rgba(239, 68, 68, 0.5);
+}
+
+.modal-dialog-danger {
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.6), 0 0 25px rgba(239, 68, 68, 0.2);
+}
+
 .modal-btn:hover {
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* Opção de Apagar Periférico no Submenu */
+.esp-subopt.danger-opt {
+    border-color: rgba(239, 68, 68, 0.3);
+    color: #fca5a5;
+}
+
+.esp-subopt.danger-opt.active-target {
+    border-color: #ef4444;
+    background: rgba(239, 68, 68, 0.12);
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.35);
+    color: #ffffff;
+}
+
+.danger-text {
+    color: #ef4444 !important;
+    font-weight: 600;
+}
+
+/* Botão de Excluir Direto no Card da Lista de ESPs */
+.esp-card-delete-btn {
+    margin-left: 12px;
+    background: transparent;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #ef4444;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: var(--transition-smooth);
+}
+
+.esp-card-delete-btn:hover {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: #ef4444;
+    box-shadow: 0 0 10px rgba(239, 68, 68, 0.4);
+    transform: scale(1.1);
 }

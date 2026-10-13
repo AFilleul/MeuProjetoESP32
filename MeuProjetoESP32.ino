@@ -109,6 +109,33 @@ void handlePostConfig() {
     }
 }
 
+void handleDeleteDevice() {
+    adicionarCORS();
+    if (server.hasArg("plain")) {
+        String body = server.arg("plain");
+        Serial.println("\n[API REST] Requisicao para apagar periferico:");
+        Serial.println(body);
+
+        int idPos = body.indexOf("\"id\":");
+        if (idPos != -1) {
+            int startQuote = body.indexOf("\"", idPos + 5);
+            int endQuote = body.indexOf("\"", startQuote + 1);
+            if (startQuote != -1 && endQuote != -1) {
+                String devId = body.substring(startQuote + 1, endQuote);
+                bool removed = deviceManager.removeDevice(devId);
+                if (removed) {
+                    Serial.printf("[API REST] Periférico '%s' apagado com sucesso!\n", devId.c_str());
+                    server.send(200, "application/json", "{\"status\":\"ok\",\"message\":\"Periferico apagado com sucesso!\"}");
+                    return;
+                }
+            }
+        }
+        server.send(200, "application/json", "{\"status\":\"ok\",\"message\":\"Comando processado\"}");
+    } else {
+        server.send(400, "application/json", "{\"status\":\"error\",\"message\":\"Requisicao sem conteudo\"}");
+    }
+}
+
 // ============================================================================
 // INICIALIZAÇÃO (SETUP)
 // ============================================================================
@@ -166,6 +193,8 @@ void setup() {
     server.on("/api/status", HTTP_GET, handleGetStatus);
     server.on("/api/config", HTTP_OPTIONS, handleOptions);
     server.on("/api/config", HTTP_POST, handlePostConfig);
+    server.on("/api/device/delete", HTTP_OPTIONS, handleOptions);
+    server.on("/api/device/delete", HTTP_POST, handleDeleteDevice);
 
     server.begin();
     Serial.println("[Servidor HTTP] API REST pronta na porta 80.");

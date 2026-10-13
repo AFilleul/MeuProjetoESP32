@@ -228,6 +228,11 @@
                         <span class="subopt-text">Definir fonte de alimentação</span>
                         <span class="subopt-value" id="val-preview-power">(atual: Bateria 2500 mAh)</span>
                     </div>
+                    <div class="esp-subopt danger-opt" data-opt="delete" id="subopt-delete" title="Clique ou use Enter para Apagar este periférico">
+                        <span class="cursor-indicator">&gt;</span>
+                        <span class="subopt-text">🗑️ Apagar periférico</span>
+                        <span class="subopt-value danger-text">Excluir do sistema</span>
+                    </div>
                 </div>
 
                 <div class="sync-status-box" id="esp-sync-badge">
@@ -445,6 +450,27 @@
                 <div class="modal-footer">
                     <button class="modal-btn secondary" id="btn-modal-cancel">Fechar</button>
                     <button class="modal-btn primary" id="btn-modal-save">Salvar e Conectar</button>
+                </div>
+            </div>
+        </div>
+        <!-- MODAL DE CONFIRMAÇÃO PARA APAGAR PERIFÉRICO -->
+        <div class="modal-backdrop" id="modal-confirm-delete">
+            <div class="modal-dialog modal-dialog-danger">
+                <div class="modal-header">
+                    <h3 style="color: #ef4444;">⚠️ Confirmar Exclusão de Periférico</h3>
+                    <button class="modal-close-btn" id="btn-close-delete-modal">✕</button>
+                </div>
+                <div class="modal-body">
+                    <p style="font-size: 1.05rem; color: #f8fafc; margin-bottom: 12px;">
+                        Tem certeza de que deseja apagar o periférico <strong id="delete-esp-name" style="color: #38bdf8;">ESP 1</strong>?
+                    </p>
+                    <p style="font-size: 0.85rem; color: #94a3b8; line-height: 1.4;">
+                        Esta ação removerá este microcontrolador da base de dados, da fila de sincronização e do registro do ESP Central. Caso ele transmita dados novamente no futuro via ESP-NOW, ele será redescoberto automaticamente.
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button class="modal-btn secondary" id="btn-cancel-delete">Cancelar (Esc)</button>
+                    <button class="modal-btn danger" id="btn-confirm-delete">🗑️ Sim, Apagar Periférico (Enter)</button>
                 </div>
             </div>
         </div>

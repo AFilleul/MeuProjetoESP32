@@ -1,20 +1,41 @@
 # ESPs Periféricos (Nós Sensores / Clientes)
 
-Esta pasta contém o firmware dos **microcontroladores ESP32 secundários (nós periféricos)** que se comunicam via rede Wi-Fi com o **ESP32 Central (Servidor REST)**.
+Esta pasta contém o firmware modular dos **microcontroladores ESP32 secundários (nós periféricos)** que se comunicam via **ESP-NOW** diretamente com o **ESP32 Central**.
 
-## Arquitetura de Comunicação
+---
+
+## ⚡ Modos de Operação dos Periféricos
+
+Os nós periféricos **não funcionam apenas em modo Sleep**. Eles são flexíveis e suportam três modos operacionais, configuráveis no código ou dinamicamente pela Interface Web:
+
+| Modo de Operação | Fonte de Energia Recomendada | Comportamento do Periférico | Vantagens |
+| :--- | :--- | :--- | :--- |
+| **`ONLINE` (Contínuo)** | **Fonte DC / Tomada (5V)** | O ESP32 permanece **100% acordado**, com CPU e rádio Wi-Fi/ESP-NOW ativos continuamente no `loop()`. | Telemetria contínua/rápida, monitoramento em tempo real e aplicação **instantânea** de configurações enviadas pela Web (sem esperar acordar). |
+| **`DEEP_SLEEP`** | **Bateria Li-Ion / 18650** | Acorda periodicamente pelo timer RTC, lê os sensores, envia via ESP-NOW Unicast e **desliga CPU e rádio**. | Máxima economia de energia, permitindo meses ou anos de autonomia em locais remotos. |
+| **`LIGHT_SLEEP`** | **Bateria ou Painel Solar** | Suspende o processador mantendo a memória RAM e periféricos internos em espera de baixo consumo. | Retomada instantânea sem perder o estado de execução. |
+
+---
+
+## 📡 Arquitetura de Comunicação (ESP-NOW Sem Roteador)
 
 ```text
-[ Sensor (ex: MH-RD) ]
-        │ (GPIO)
-        ▼
-[ ESP32 Periférico / Nó ] ──(HTTP POST /api/data)──▶ [ ESP32 Central (Servidor REST) ]
-   - Lê sensores periodicamente
-   - Opera em Deep Sleep ou Light Sleep para poupar bateria
-   - Registra seu ID, tipo de sensor e nível de bateria
+[ Sensores (Solo / Chuva MH-RD / DHT) ]
+         │ (GPIO / ADC Seguro)
+         ▼
+[ ESP32 Periférico ]
+   ├── Modo ONLINE (Contínuo no loop) OU Modo Sleep (Timer RTC)
+   ├── Auto-Discovery dinâmico do MAC do Central via Broadcast
+   └── Envio Unicast direto para o ESP32 Central ──▶ [ ESP32 Central ]
 ```
 
-## Estrutura dos Módulos Periféricos
+---
 
-- `ESP_Periferico_Base/`: Template modular básico para nós com suporte a leitura analógica/digital e modos de baixo consumo (`Deep Sleep`, `Light Sleep`, `Online`).
-- `config_periferico.h`: Definições de ID do nó, pino do sensor, intervalo e endereço do ESP Central.
+## 📁 Estrutura dos Módulos Periféricos
+
+* **[`ESP_Periferico_Base/`](ESP_Periferico_Base/):**
+  * [`config_periferico.h`](ESP_Periferico_Base/config_periferico.h): Configuração de ID, fonte de alimentação (`DC` ou `BATTERY`), intervalo e modo (`ONLINE`, `DEEP_SLEEP`, `LIGHT_SLEEP`).
+  * [`EspNowPeriferico.h`](ESP_Periferico_Base/EspNowPeriferico.h) / [`EspNowPeriferico.cpp`](ESP_Periferico_Base/EspNowPeriferico.cpp): Classe C++ com auto-discovery, despacho Unicast, callbacks e janelas de pareamento.
+  * [`ESP_Periferico_Base.ino`](ESP_Periferico_Base/ESP_Periferico_Base.ino): Sketch principal com suporte a execução contínua no `loop()` ou ciclo rápido de *Deep Sleep*.
+* **[`ESP_Periferico_Chuva/`](ESP_Periferico_Chuva/):**
+  * [`SensorChuvaMHRD.h`](ESP_Periferico_Chuva/SensorChuvaMHRD.h) / [`SensorChuvaMHRD.cpp`](ESP_Periferico_Chuva/SensorChuvaMHRD.cpp): Leitura com chaveamento de transistor BJT NPN no polo negativo (Low-Side) e proteção contra oxidação/eletrólise.
+  * [`ESP_Periferico_Chuva.ino`](ESP_Periferico_Chuva/ESP_Periferico_Chuva.ino): Demonstração de leitura contínua com cálculo de *duty cycle*.

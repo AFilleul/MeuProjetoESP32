@@ -137,9 +137,9 @@ void setup() {
         // Atualiza tempo ativo
         tempoUptimeAcumuladoSegundos += ((millis() - tempoInicioMs) / 1000);
 
-        // Após 1 minuto, verifica se o modo configurado é Deep Sleep ou Contínuo
+        // Após 1 minuto, verifica se o modo configurado é Deep Sleep ou Contínuo (ONLINE)
         if (strcmp(rtcModoOperacao, "ONLINE") == 0) {
-            Serial.println("[Periferico] Modo ONLINE ativo. Permanecendo ativo continuamente.");
+            Serial.println("[Periferico] MODO ONLINE CONTÍNUO ativo. O nó permanecerá 100% ativo e conectado no loop().");
             return; // Continua no loop()
         } else {
             Serial.printf("[Periferico] Entrando em Deep Sleep pelo tempo configurado (%d min)...\n", rtcIntervaloMin);
@@ -176,21 +176,49 @@ void setup() {
         Serial.println("[CICLO WAKEUP] Central indisponivel neste ciclo. Retornando ao sono.");
     }
 
-    // 3. Acumula tempo de funcionamento e retorna imediatamente ao Deep Sleep
+    // 3. Acumula tempo de funcionamento
     tempoUptimeAcumuladoSegundos += ((millis() - tempoInicioMs) / 1000) + 1;
-    Serial.printf("[CICLO WAKEUP] Ciclo concluido em %lu ms. Retornando ao sono por %d min...\n", 
+
+    // Se o periférico foi reconfigurado para o modo ONLINE durante o ciclo de despertar:
+    if (strcmp(rtcModoOperacao, "ONLINE") == 0) {
+        Serial.println("[CICLO WAKEUP] Nó transicionado para MODO ONLINE CONTÍNUO. Permanecendo ativo no loop().");
+        return; // Não entra em Deep Sleep, passa a executar o loop() continuamente!
+    }
+
+    Serial.printf("[CICLO WAKEUP] Ciclo concluído em %lu ms. Retornando ao sono por %d min...\n", 
                   millis() - tempoInicioMs, rtcIntervaloMin);
 
     espNowNode.entrarDeepSleep(rtcIntervaloMin);
 }
 
 void loop() {
-    // Utilizado apenas se o modo configurado for "ONLINE" (sem sono profundo)
+    // ========================================================================
+    // MODO ONLINE CONTÍNUO (NÓ LIGADO PERMANENTEMENTE NA TOMADA / FONTE DC)
+    // O microcontrolador não desliga o rádio nem a CPU, respondendo instantaneamente
+    // ========================================================================
     static unsigned long ultimoEnvioOnline = 0;
-    if (millis() - ultimoEnvioOnline >= (unsigned long)rtcIntervaloMin * 60000UL) {
-        ultimoEnvioOnline = millis();
-        PacoteDadosSensores dados = montarPacoteSensores(millis());
+    unsigned long agora = millis();
+
+    // 1. Envio periódico de telemetria completa dos sensores
+    unsigned long intervaloMs = (unsigned long)rtcIntervaloMin * 60000UL;
+    if (intervaloMs == 0) intervaloMs = 5000; // Padrão de segurança: 5 segundos
+
+    if (agora - ultimoEnvioOnline >= intervaloMs || ultimoEnvioOnline == 0) {
+        ultimoEnvioOnline = agora;
+        PacoteDadosSensores dados = montarPacoteSensores(agora);
         espNowNode.enviarDadosUnicast(dados);
+        Serial.printf("[MODO ONLINE] Telemetria despachada | Umidade: %.1f%% | Bateria: %d%% | Uptime: %lu s\n", 
+                      dados.sensorUmidade, dados.bateriaPct, (unsigned long)dados.tempoUptimeSegundos);
     }
-    delay(50);
+
+    // 2. Se a qualquer momento o modo for alterado pela Web para "DEEP_SLEEP", o nó entra em repouso
+    if (strcmp(rtcModoOperacao, "DEEP_SLEEP") == 0) {
+        Serial.printf("\n[MODO ONLINE -> SLEEP] Comando recebido da Web: Entrando em Deep Sleep (%d min)...\n", rtcIntervaloMin);
+        espNowNode.entrarDeepSleep(rtcIntervaloMin);
+    } else if (strcmp(rtcModoOperacao, "LIGHT_SLEEP") == 0) {
+        esp_sleep_enable_timer_wakeup((uint64_t)rtcIntervaloMin * 60ULL * 1000000ULL);
+        esp_light_sleep_start();
+    }
+
+    delay(20);
 }

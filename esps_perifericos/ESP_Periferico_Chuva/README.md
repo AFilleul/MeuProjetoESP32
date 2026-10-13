@@ -74,7 +74,9 @@ Quando o sensor de chuva é mantido energizado de forma contínua:
 
 ---
 
-## 🚀 5. Integração com ESP-NOW e Deep Sleep
+## 🚀 5. Integração com ESP-NOW (Modo ONLINE Contínuo ou Deep Sleep)
+
+O sensor de chuva pode ser utilizado tanto em nós ligados permanentemente na tomada (**Modo ONLINE**) quanto em nós a bateria (**Modo Deep Sleep**):
 
 ```cpp
 #include "../ESP_Periferico_Chuva/SensorChuvaMHRD.h"
@@ -84,14 +86,18 @@ SensorChuvaMHRD sensorChuva(14, 34, 35);
 
 void setup() {
     sensorChuva.begin(); // Garante o BJT NPN em corte imediatamente
-    
-    // Acorda do sono, realiza a leitura transitória e coleta os dados
-    LeituraSensorChuva leitura = sensorChuva.realizarLeitura();
-    
-    // Preenche o payload e transmite via ESP-NOW
-    pacote.sensorUmidade = leitura.porcentagemIntensidade;
-    // ...
-    // Entra novamente em Deep Sleep (a GPIO fica em alta impedância,
-    // e o resistor pull-down de 10k mantém o BJT em corte com consumo zero)
 }
+
+// CASO A: Nó operando em MODO ONLINE CONTÍNUO (Loop ativo)
+void loop() {
+    // A cada intervalo configurado, liga o sensor por 50ms, lê e desliga
+    LeituraSensorChuva leitura = sensorChuva.realizarLeitura();
+    pacote.sensorUmidade = leitura.porcentagemIntensidade;
+    espNowNode.enviarDadosUnicast(pacote);
+    delay(5000); // Permanece 100% online no loop()
+}
+
+// CASO B: Nó operando a Bateria (Deep Sleep)
+// Acorda pelo timer RTC, executa realizarLeitura(), transmite via ESP-NOW 
+// e chama espNowNode.entrarDeepSleep(minutos), desligando a CPU.
 ```

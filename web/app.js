@@ -125,10 +125,10 @@ const MOCK_ESPS = [
             id: 'esp-8',
             num: 8,
             name: 'ESP 8',
-            connectivity: 'DORMINDO',
+            connectivity: 'OFFLINE',
             mode: 'DEEP SLEEP',
             lastUpdate: '13:00 - 11/10/2026',
-            nextUpdate: '14:30 - 11/10/2026',
+            nextUpdate: 'Atrasado (OFFLINE)',
             sensorValue: '1013 hPa (Barômetro)',
             interval: '90 min',
             unit: 'hPa',
@@ -173,6 +173,7 @@ const MOCK_ESPS = [
 
 const MOCK_NOTIFICATIONS = [
     'Modo Simulação Ativo: exibindo exemplos de sensores agrícolas.',
+    '⚠️ ALERTA: O ESP 8 não transmitiu sinal no horário previsto e está OFFLINE!',
     'O ESP 3 está online!',
     'O ESP 9 está online!'
 ];
@@ -666,13 +667,13 @@ function renderStatusP1() {
 
     tbody.innerHTML = '';
 
-    const hasOnlineOrConfigured = AppState.esps.some(e => e.connectivity === 'ONLINE' || e.connectivity === 'DORMINDO');
+    const hasDevices = AppState.esps.length > 0;
 
-    if (!hasOnlineOrConfigured || AppState.esps.length === 0) {
+    if (!hasDevices) {
         table.style.display = 'none';
         if (emptyMsg) {
             emptyMsg.classList.add('visible');
-            emptyMsg.textContent = 'Nenhum ESP Online ou Configurado';
+            emptyMsg.textContent = 'Nenhum ESP Cadastrado ou Conectado';
         }
         if (rowIndicator) rowIndicator.textContent = 'Linhas: 0/0';
         return;
@@ -704,6 +705,10 @@ function renderStatusP1() {
 
         const badgeClass = esp.connectivity.toLowerCase();
         const est = calculateBatteryEstimate(esp);
+        const isOffline = esp.connectivity === 'OFFLINE';
+        const lastUpdateText = isOffline 
+            ? `<span class="status-offline-text">⚠️ Sinal não recebido</span>` 
+            : esp.lastUpdate;
 
         let badgeContent = '';
         if (est.badgeClass === 'dc') {
@@ -724,7 +729,7 @@ function renderStatusP1() {
                     <span class="battery-subtext">${est.powerSourceLabel} • ${est.avgMa} mA méd. • ${est.uptimeFormatted} ativo</span>
                 </div>
             </td>
-            <td>${esp.lastUpdate}</td>
+            <td>${lastUpdateText}</td>
             <td><strong>${esp.sensorValue}</strong></td>
         `;
 
@@ -751,13 +756,13 @@ function renderStatusP2() {
 
     tbody.innerHTML = '';
 
-    const hasOnlineOrConfigured = AppState.esps.some(e => e.connectivity === 'ONLINE' || e.connectivity === 'DORMINDO');
+    const hasDevices = AppState.esps.length > 0;
 
-    if (!hasOnlineOrConfigured || AppState.esps.length === 0) {
+    if (!hasDevices) {
         table.style.display = 'none';
         if (emptyMsg) {
             emptyMsg.classList.add('visible');
-            emptyMsg.textContent = 'Nenhum ESP Online ou Configurado';
+            emptyMsg.textContent = 'Nenhum ESP Cadastrado ou Conectado';
         }
         if (rowIndicatorP2) rowIndicatorP2.textContent = 'Linhas: 0/0';
         return;
@@ -793,9 +798,14 @@ function renderStatusP2() {
             ? `<span style="color:#f59e0b; font-weight:700;">⏳ ${pendingForEsp.length} comando(s) aguardando despertar</span>`
             : `<span style="color:#10b981;">✓ Sincronizado</span>`;
 
+        const isOffline = esp.connectivity === 'OFFLINE';
+        const nextUpdateHtml = isOffline 
+            ? `<span class="status-offline-text">⚠️ Atrasado (OFFLINE)</span>` 
+            : esp.nextUpdate;
+
         tr.innerHTML = `
             <td><strong>${esp.name}:</strong></td>
-            <td>${esp.nextUpdate}</td>
+            <td>${nextUpdateHtml}</td>
             <td><span style="color:#38bdf8; font-weight:600;">⚡ ~${est.avgMa} mA</span> <span style="font-size:0.75rem; color:#94a3b8;">(${esp.mode})</span></td>
             <td><strong>🕒 ${est.uptimeFormatted}</strong> <span style="font-size:0.75rem; color:#94a3b8;">(${est.powerSourceLabel})</span></td>
             <td>${queueHtml}</td>
@@ -883,7 +893,13 @@ function renderEspOptions() {
     if (!esp) return;
 
     const titleEl = document.getElementById('selected-esp-title');
-    if (titleEl) titleEl.textContent = `${esp.name} (${esp.connectivity})`;
+    if (titleEl) {
+        if (esp.connectivity === 'OFFLINE') {
+            titleEl.innerHTML = `${esp.name} <span class="status-offline-text">(OFFLINE)</span>`;
+        } else {
+            titleEl.textContent = `${esp.name} (${esp.connectivity})`;
+        }
+    }
 
     const intPreview = document.getElementById('val-preview-interval');
     if (intPreview) intPreview.textContent = `(atual: ${esp.interval})`;
@@ -917,7 +933,8 @@ function renderEspOptions() {
     if (syncBadge && syncText) {
         if (pendingForEsp.length > 0) {
             syncBadge.style.display = 'flex';
-            syncText.textContent = `${pendingForEsp.length} alteração(ões) aguardando o ESP acordar (${esp.mode})`;
+            const contextText = (esp.connectivity === 'OFFLINE') ? 'Nó OFFLINE' : esp.mode;
+            syncText.textContent = `${pendingForEsp.length} alteração(ões) aguardando conexão (${contextText})`;
         } else {
             syncBadge.style.display = 'none';
         }
@@ -1327,10 +1344,11 @@ function saveEspSetting(field, value) {
     if (!esp) return;
 
     const isSleeping = esp.connectivity === 'DORMINDO';
+    const isOffline = esp.connectivity === 'OFFLINE';
 
     let displayValue = typeof value === 'object' ? value.label : value;
 
-    if (isSleeping) {
+    if (isSleeping || isOffline) {
         // Enfileira na fila de pendências
         const pendingItem = {
             id: Date.now(),
@@ -1346,8 +1364,11 @@ function saveEspSetting(field, value) {
         AppState.pendingQueue = AppState.pendingQueue.filter(q => !(q.espId === esp.id && q.field === field));
         AppState.pendingQueue.push(pendingItem);
 
-        showToastNotification(`Configuração na fila offline! O ${esp.name} está em repouso e receberá ao acordar.`);
-        console.log('[OfflineSync] Comando enfileirado para nó dormindo:', pendingItem);
+        const msgText = isOffline
+            ? `Configuração salva na fila! O ${esp.name} está OFFLINE e sincronizará quando voltar a transmitir.`
+            : `Configuração na fila offline! O ${esp.name} está em repouso e receberá ao acordar.`;
+        showToastNotification(msgText);
+        console.log('[OfflineSync] Comando enfileirado para nó:', pendingItem);
     } else {
         // Se estiver ONLINE, aplica imediatamente
         applySettingDirectly(esp, field, value);
@@ -1532,7 +1553,7 @@ async function fetchStatusFromESP32() {
             // Se algum nó acordou, entrega as alterações pendentes da fila offline
             remoteEsps.forEach(remoteEsp => {
                 const localEsp = AppState.esps.find(e => e.id === remoteEsp.id);
-                if (localEsp && localEsp.connectivity === 'DORMINDO' && remoteEsp.connectivity === 'ONLINE') {
+                if (localEsp && (localEsp.connectivity === 'DORMINDO' || localEsp.connectivity === 'OFFLINE') && remoteEsp.connectivity === 'ONLINE') {
                     processPendingQueueForEsp(remoteEsp);
                 }
             });
@@ -1746,6 +1767,21 @@ function simulateBackgroundEvents() {
             }, 12000);
 
             updateUI();
+        }
+
+        // Simula esporadicamente um nó que não transmitiu no momento previsto e ficou OFFLINE
+        if (Math.random() < 0.2) {
+            const candidates = AppState.esps.filter(e => e.connectivity === 'DORMINDO' && e.id !== 'esp-8');
+            if (candidates.length > 0) {
+                const lateEsp = candidates[Math.floor(Math.random() * candidates.length)];
+                lateEsp.connectivity = 'OFFLINE';
+                const warnMsg = `⚠️ ALERTA: O ${lateEsp.name} não enviou o sinal no horário previsto e está OFFLINE!`;
+                if (!AppState.notifications.includes(warnMsg)) {
+                    AppState.notifications.unshift(warnMsg);
+                    if (AppState.notifications.length > 5) AppState.notifications.pop();
+                }
+                updateUI();
+            }
         }
     }, 10000);
 }

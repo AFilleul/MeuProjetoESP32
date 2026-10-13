@@ -122,11 +122,29 @@ size_t DeviceManager::getOnlineCount() const {
     return count;
 }
 
+unsigned long DeviceManager::parseIntervalToMs(const String& intervalStr) {
+    int val = intervalStr.toInt();
+    if (val <= 0) val = 60;
+    if (intervalStr.indexOf("s") != -1 && intervalStr.indexOf("min") == -1) {
+        return (unsigned long)val * 1000UL;
+    }
+    return (unsigned long)val * 60UL * 1000UL;
+}
+
+void DeviceManager::setInterval(const String& id, const String& intervalStr) {
+    Device* dev = getDevice(id);
+    if (dev != nullptr) {
+        dev->interval = intervalStr;
+        dev->intervalMs = parseIntervalToMs(intervalStr);
+    }
+}
+
 void DeviceManager::updateLastSeen(const String& id) {
     Device* dev = getDevice(id);
     if (dev != nullptr) {
         dev->lastSeen = millis();
         dev->isOnline = true;
+        dev->connectivity = "ONLINE";
     }
 }
 
@@ -135,6 +153,7 @@ void DeviceManager::updateTelemetry(const String& id, float umidade, uint8_t bat
     if (dev != nullptr) {
         dev->lastSeen = millis();
         dev->isOnline = true;
+        dev->connectivity = "ONLINE";
         dev->sensorValue = String(umidade, 1) + "% (Umidade Solo)";
         dev->batteryPct = batPct;
         if (modo.length() > 0) dev->mode = modo;
@@ -146,21 +165,64 @@ void DeviceManager::setDeviceStatus(const String& id, bool online) {
     Device* dev = getDevice(id);
     if (dev != nullptr) {
         dev->isOnline = online;
+        dev->connectivity = online ? "ONLINE" : "OFFLINE";
         if (online) {
             dev->lastSeen = millis();
         }
     }
 }
 
-void DeviceManager::checkKeepAlive(unsigned long timeoutMs) {
+void DeviceManager::checkScheduleTimeout(unsigned long toleranciaMs) {
     unsigned long now = millis();
     for (auto& dev : devices) {
-        if (dev.isOnline && (now - dev.lastSeen > timeoutMs)) {
-            dev.isOnline = false;
-            Serial.print("[DeviceManager] Dispositivo inativo (timeout): ");
-            Serial.println(dev.id);
+        unsigned long tempoDesdeUltimoSinal = now - dev.lastSeen;
+
+        if (dev.mode == "ONLINE") {
+            // Em modo ONLINE contínuo, espera sinal a cada 60s ou conforme intervalo
+            unsigned long limiteEsperado = (dev.intervalMs > 0 ? dev.intervalMs : 60000UL) + toleranciaMs;
+            if (tempoDesdeUltimoSinal > limiteEsperado) {
+                if (dev.connectivity != "OFFLINE") {
+                    Serial.print("\n[DeviceManager] ⚠️ ALERTA: Periférico '");
+                    Serial.print(dev.name);
+                    Serial.print("' (");
+                    Serial.print(dev.id);
+                    Serial.println(") NÃO enviou sinal quando devia! Alterando status para OFFLINE (Vermelho).");
+                }
+                dev.isOnline = false;
+                dev.connectivity = "OFFLINE";
+            } else {
+                dev.isOnline = true;
+                dev.connectivity = "ONLINE";
+            }
+        } else {
+            // Em modo SLEEP (DEEP SLEEP ou LIGHT SLEEP)
+            unsigned long limiteEsperado = dev.intervalMs + toleranciaMs;
+            if (tempoDesdeUltimoSinal > limiteEsperado) {
+                // Passou do horário previsto para acordar e transmitir: NÃO RECEBEU SINAL QUANDO DEVIA!
+                if (dev.connectivity != "OFFLINE") {
+                    Serial.print("\n[DeviceManager] ⚠️ ALERTA: Periférico em repouso '");
+                    Serial.print(dev.name);
+                    Serial.print("' (");
+                    Serial.print(dev.id);
+                    Serial.println(") NÃO acordou/enviou dados no horário previsto! Alterando status para OFFLINE (Vermelho).");
+                }
+                dev.isOnline = false;
+                dev.connectivity = "OFFLINE";
+            } else if (tempoDesdeUltimoSinal > 12000) {
+                // Dentro do prazo normal de sono: está em repouso planejado
+                dev.isOnline = true;
+                dev.connectivity = "DORMINDO";
+            } else {
+                // Acabou de enviar pacote (últimos 12 segundos)
+                dev.isOnline = true;
+                dev.connectivity = "ONLINE";
+            }
         }
     }
+}
+
+void DeviceManager::checkKeepAlive(unsigned long timeoutMs) {
+    checkScheduleTimeout(timeoutMs);
 }
 
 size_t DeviceManager::getFreeHeap() const {
@@ -210,7 +272,7 @@ void DeviceManager::printDevices() const {
                 Serial.print(dev.port);
             }
             Serial.print(" | Status: ");
-            Serial.print(dev.isOnline ? "ONLINE" : "OFFLINE");
+            Serial.print(dev.connectivity);
             Serial.print(" | Ultimo contato: ");
             Serial.print((millis() - dev.lastSeen) / 1000);
             Serial.println("s atras");

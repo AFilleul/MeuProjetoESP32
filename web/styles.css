@@ -630,11 +630,36 @@ kbd {
 .badge-status.dormindo {
     background: #fef3c7;
     color: #b45309;
+    border: 1px solid #fde68a;
 }
 
 .badge-status.offline {
     background: #fee2e2;
-    color: #b91c1c;
+    color: #dc2626;
+    border: 1px solid #ef4444;
+    font-weight: 800;
+    box-shadow: 0 0 10px rgba(239, 68, 68, 0.35);
+    text-transform: uppercase;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.badge-status.offline::before {
+    content: "●";
+    color: #ef4444;
+    font-size: 0.85rem;
+    animation: blink-offline 1.2s infinite ease-in-out;
+}
+
+@keyframes blink-offline {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.3; transform: scale(0.8); }
+}
+
+.status-offline-text {
+    color: #dc2626 !important;
+    font-weight: 700;
 }
 
 .empty-state-message {

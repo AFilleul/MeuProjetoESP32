@@ -11,12 +11,14 @@ struct Device {
     String ip;                  // Endereço IP / Host
     uint16_t port;              // Porta de comunicação (opcional)
     bool isOnline;              // Estado atual de conexão
+    String connectivity;        // "ONLINE", "DORMINDO" ou "OFFLINE"
     unsigned long lastSeen;     // Timestamp do último contato em millis()
 
     // Telemetria e configurações do nó agrícola
     String mode;
     String sensorValue;
     String interval;
+    unsigned long intervalMs;   // Intervalo esperado entre transmissões em milissegundos
     String unit;
     uint8_t batteryPct;
     String powerSource;
@@ -29,10 +31,12 @@ struct Device {
           ip(devIp), 
           port(devPort), 
           isOnline(true), 
+          connectivity("ONLINE"),
           lastSeen(millis()),
           mode("DEEP SLEEP"),
           sensorValue("--"),
           interval("60 min"),
+          intervalMs(60UL * 60UL * 1000UL),
           unit("% Umidade"),
           batteryPct(100),
           powerSource("BATTERY"),
@@ -69,7 +73,12 @@ public:
     void updateLastSeen(const String& id);
     void updateTelemetry(const String& id, float umidade, uint8_t batPct, const String& modo = "", uint32_t uptimeSec = 0);
     void setDeviceStatus(const String& id, bool online);
+    void setInterval(const String& id, const String& intervalStr);
     void checkKeepAlive(unsigned long timeoutMs = 60000);
+    void checkScheduleTimeout(unsigned long toleranciaMs = 30000);
+
+    // Utilitário de conversão de tempo
+    static unsigned long parseIntervalToMs(const String& intervalStr);
 
     // Estimativas de Memória (Heap do ESP32)
     size_t getFreeHeap() const;

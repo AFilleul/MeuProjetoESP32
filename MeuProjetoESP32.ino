@@ -53,18 +53,28 @@ void handleGetStatus() {
     json += "  \"esps\": [\n";
 
     size_t count = deviceManager.getDeviceCount();
+    std::vector<String> offlineDevs;
+
     for (size_t i = 0; i < count; i++) {
         const Device* dev = deviceManager.getDeviceByIndex(i);
         if (!dev) continue;
+
+        if (dev->connectivity == "OFFLINE") {
+            offlineDevs.push_back(dev->name);
+        }
+
+        String nextUp = (dev->connectivity == "OFFLINE") ? "⚠️ Atrasado (OFFLINE)" : ("Em " + dev->interval);
+        unsigned long segAtras = (millis() - dev->lastSeen) / 1000;
+        String lastUp = (segAtras < 5) ? "Agora" : (String(segAtras) + "s atrás");
 
         json += "    {\n";
         json += "      \"id\": \"" + dev->id + "\",\n";
         json += "      \"num\": " + String(i + 1) + ",\n";
         json += "      \"name\": \"" + dev->name + "\",\n";
-        json += "      \"connectivity\": \"" + String(dev->isOnline ? "ONLINE" : "DORMINDO") + "\",\n";
+        json += "      \"connectivity\": \"" + dev->connectivity + "\",\n";
         json += "      \"mode\": \"" + dev->mode + "\",\n";
-        json += "      \"lastUpdate\": \"Agora\",\n";
-        json += "      \"nextUpdate\": \"Em " + dev->interval + "\",\n";
+        json += "      \"lastUpdate\": \"" + lastUp + "\",\n";
+        json += "      \"nextUpdate\": \"" + nextUp + "\",\n";
         json += "      \"sensorValue\": \"" + dev->sensorValue + "\",\n";
         json += "      \"interval\": \"" + dev->interval + "\",\n";
         json += "      \"unit\": \"" + dev->unit + "\",\n";
@@ -81,8 +91,14 @@ void handleGetStatus() {
         json += "    \"⚠️ Nenhum ESP periférico conectado ao Central no momento.\",\n";
         json += "    \"ℹ️ Aguardando comunicação dos microcontroladores periféricos via ESP-NOW...\"\n";
     } else {
+        bool hasOffline = !offlineDevs.empty();
+        if (hasOffline) {
+            for (const auto& devName : offlineDevs) {
+                json += "    \"⚠️ ALERTA: " + devName + " não enviou sinal no horário previsto e está OFFLINE!\",\n";
+            }
+        }
         json += "    \"ESP32 Central operando em modo computador/web!\",\n";
-        json += "    \"" + String(count) + " dispositivo(s) conectado(s) ao sistema.\"\n";
+        json += "    \"" + String(count) + " dispositivo(s) cadastrado(s) no sistema.\"\n";
     }
     json += "  ],\n";
     json += "  \"receptionSchedule\": {\n";
@@ -221,11 +237,11 @@ void loop() {
         }
     }
 
-    // 4. Manutenção de keep-alive de dispositivos registrados
+    // 4. Manutenção de keep-alive e detecção de periféricos que não enviaram sinal quando deviam
     static unsigned long ultimoCheckDevices = 0;
-    if (millis() - ultimoCheckDevices > 15000) {
+    if (millis() - ultimoCheckDevices > 2000) {
         ultimoCheckDevices = millis();
-        deviceManager.checkKeepAlive(180000);
+        deviceManager.checkScheduleTimeout(30000); // 30s de tolerância após o horário previsto
     }
 
     delay(10);

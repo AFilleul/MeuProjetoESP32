@@ -74,30 +74,20 @@ Quando o sensor de chuva é mantido energizado de forma contínua:
 
 ---
 
-## 🚀 5. Integração com ESP-NOW (Modo ONLINE Contínuo ou Deep Sleep)
+## 🚀 5. Arquivos Autocontidos e Firmware Integrado
 
-O sensor de chuva pode ser utilizado tanto em nós ligados permanentemente na tomada (**Modo ONLINE**) quanto em nós a bateria (**Modo Deep Sleep**):
+Esta pasta foi estruturada de forma **100% autocontida** para permitir que o sketch seja aberto e compilado diretamente no **Arduino IDE** sem dependências externas ou pastas pai:
 
-```cpp
-#include "../ESP_Periferico_Chuva/SensorChuvaMHRD.h"
+| Arquivo | Descrição |
+| :--- | :--- |
+| **`ESP_Periferico_Chuva.ino`** | Firmware completo integrando leitura do sensor MH-RD + transmissão ESP-NOW + recepção de configurações da Web. |
+| **`config_periferico.h`** | Parâmetros do periférico de chuva (`NODE_ID "esp-chuva-1"`, GPIOs 14/34/35, `ONLINE`/`DEEP_SLEEP`). |
+| **`SensorChuvaMHRD.h` / `.cpp`** | Driver com chaveamento por transistor BJT NPN (50 ms) contra oxidação. |
+| **`EspNowPeriferico.h` / `.cpp`** | Pilha de rede ESP-NOW com auto-discovery do ESP Central e envio Unicast. |
+| **`ProtocoloMensagens.h`** | Definição binária dos pacotes e estruturas trocadas na rede. |
 
-// Inicializa com controle BJT NPN na GPIO 14, AO na GPIO 34 e DO na GPIO 35
-SensorChuvaMHRD sensorChuva(14, 34, 35);
-
-void setup() {
-    sensorChuva.begin(); // Garante o BJT NPN em corte imediatamente
-}
-
-// CASO A: Nó operando em MODO ONLINE CONTÍNUO (Loop ativo)
-void loop() {
-    // A cada intervalo configurado, liga o sensor por 50ms, lê e desliga
-    LeituraSensorChuva leitura = sensorChuva.realizarLeitura();
-    pacote.sensorUmidade = leitura.porcentagemIntensidade;
-    espNowNode.enviarDadosUnicast(pacote);
-    delay(5000); // Permanece 100% online no loop()
-}
-
-// CASO B: Nó operando a Bateria (Deep Sleep)
-// Acorda pelo timer RTC, executa realizarLeitura(), transmite via ESP-NOW 
-// e chama espNowNode.entrarDeepSleep(minutos), desligando a CPU.
-```
+### Como Gravar no ESP32:
+1. Abra a pasta `esps_perifericos/ESP_Periferico_Chuva` no Arduino IDE ou VSCode.
+2. Abra o arquivo `ESP_Periferico_Chuva.ino`.
+3. Selecione a placa **ESP32 Dev Module** e a porta COM.
+4. Clique em **Upload**. O nó iniciará em corte no BJT, realizará o auto-discovery com o ESP Central e começará a transmitir os dados!

@@ -32,10 +32,16 @@ Os nós periféricos **não funcionam apenas em modo Sleep**. Eles são flexíve
 
 ## 📁 Estrutura dos Módulos Periféricos
 
-* **[`ESP_Periferico_Base/`](ESP_Periferico_Base/):**
-  * [`config_periferico.h`](ESP_Periferico_Base/config_periferico.h): Configuração de ID, fonte de alimentação (`DC` ou `BATTERY`), intervalo e modo (`ONLINE`, `DEEP_SLEEP`, `LIGHT_SLEEP`).
-  * [`EspNowPeriferico.h`](ESP_Periferico_Base/EspNowPeriferico.h) / [`EspNowPeriferico.cpp`](ESP_Periferico_Base/EspNowPeriferico.cpp): Classe C++ com auto-discovery, despacho Unicast, callbacks e janelas de pareamento.
-  * [`ESP_Periferico_Base.ino`](ESP_Periferico_Base/ESP_Periferico_Base.ino): Sketch principal com suporte a execução contínua no `loop()` ou ciclo rápido de *Deep Sleep*.
-* **[`ESP_Periferico_Chuva/`](ESP_Periferico_Chuva/):**
-  * [`SensorChuvaMHRD.h`](ESP_Periferico_Chuva/SensorChuvaMHRD.h) / [`SensorChuvaMHRD.cpp`](ESP_Periferico_Chuva/SensorChuvaMHRD.cpp): Leitura com chaveamento de transistor BJT NPN no polo negativo (Low-Side) e proteção contra oxidação/eletrólise.
-  * [`ESP_Periferico_Chuva.ino`](ESP_Periferico_Chuva/ESP_Periferico_Chuva.ino): Demonstração de leitura contínua com cálculo de *duty cycle*.
+* **[`ESP_Periferico_Base/`](ESP_Periferico_Base/) (Template Genérico):**
+  * Molde modular reutilizável para implementar novos sensores (Solo, Temperatura, Luz, etc.).
+  * [`config_periferico.h`](ESP_Periferico_Base/config_periferico.h): Configuração padrão de ID, fonte e modo de operação.
+  * [`EspNowPeriferico.h`](ESP_Periferico_Base/EspNowPeriferico.h) / [`EspNowPeriferico.cpp`](ESP_Periferico_Base/EspNowPeriferico.cpp): Pilha de comunicação ESP-NOW com auto-discovery e pareamento.
+  * [`ProtocoloMensagens.h`](ESP_Periferico_Base/ProtocoloMensagens.h): Definição de structs de rede compartilhadas.
+  * [`ESP_Periferico_Base.ino`](ESP_Periferico_Base/ESP_Periferico_Base.ino): Sketch template com suporte a loop contínuo (`ONLINE`) ou ciclo de *Deep Sleep*.
+
+* **[`ESP_Periferico_Chuva/`](ESP_Periferico_Chuva/) (Firmware Concreto do Sensor de Chuva):**
+  * Projeto completo e **100% autocontido** para compilação direta no Arduino IDE.
+  * [`config_periferico.h`](ESP_Periferico_Chuva/config_periferico.h): Pré-configurado para o sensor de chuva (`NODE_ID "esp-chuva-1"`, GPIO 14 na Base BJT, GPIO 34 no AO, GPIO 35 no DO).
+  * [`SensorChuvaMHRD.h`](ESP_Periferico_Chuva/SensorChuvaMHRD.h) / [`SensorChuvaMHRD.cpp`](ESP_Periferico_Chuva/SensorChuvaMHRD.cpp): Driver com chaveamento Low-Side por BJT NPN (50 ms) contra oxidação.
+  * [`EspNowPeriferico.h`](ESP_Periferico_Chuva/EspNowPeriferico.h) / [`EspNowPeriferico.cpp`](ESP_Periferico_Chuva/EspNowPeriferico.cpp) e [`ProtocoloMensagens.h`](ESP_Periferico_Chuva/ProtocoloMensagens.h): Comunicação ESP-NOW integrada.
+  * [`ESP_Periferico_Chuva.ino`](ESP_Periferico_Chuva/ESP_Periferico_Chuva.ino): Firmware final pronto para gravar na placa (gravação via Arduino IDE).

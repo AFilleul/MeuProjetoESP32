@@ -6,7 +6,11 @@
 #include <WiFi.h>
 #include <esp_system.h>
 #include <functional>
+#if __has_include("ProtocoloMensagens.h")
+#include "ProtocoloMensagens.h"
+#else
 #include "../../ProtocoloMensagens.h"
+#endif
 
 class EspNowPeriferico {
 public:

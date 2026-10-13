@@ -42,7 +42,7 @@ struct LeituraSensorChuva {
 class SensorChuvaMHRD {
 public:
     // Construtor simplificado com pinos padrão (BJT NPN na Base)
-    SensorChuvaMHRD(uint8_t pinoBjtBase = 23, 
+    SensorChuvaMHRD(uint8_t pinoBjtBase = 14, 
                     uint8_t pinoAnalogicoAO = 34, 
                     uint8_t pinoDigitalDO = 35);
 

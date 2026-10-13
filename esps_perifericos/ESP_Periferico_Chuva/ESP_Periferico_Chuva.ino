@@ -6,7 +6,7 @@
 // ============================================================================
 
 // Pino que aciona a Base do Transistor BJT NPN (Low-Side Switch)
-#define PIN_BJT_BASE       23   // GPIO 23: Saída digital para controle de saturação/corte do BJT
+#define PIN_BJT_BASE       14   // GPIO 14: Saída digital para controle de saturação/corte do BJT
 
 // Pinos de leitura do sensor MH-RD (módulo comparador LM393)
 #define PIN_SENSOR_AO      34   // GPIO 34: ADC1_CH6 (Entrada analógica segura, imune a conflitos de rádio)

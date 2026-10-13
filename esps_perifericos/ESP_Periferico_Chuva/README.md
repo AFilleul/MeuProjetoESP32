@@ -27,7 +27,7 @@ Quando o sensor de chuva é mantido energizado de forma contínua:
                                  │
                                  ├─── [3V3] ───> Pino VCC do Módulo MH-RD (3.3V)
                                  │
-     [GPIO 23] ──[ 1kΩ (Rb) ]────┼─────────────> Base (B) do Transistor BJT NPN
+     [GPIO 14] ──[ 1kΩ (Rb) ]────┼─────────────> Base (B) do Transistor BJT NPN
                                  │
                               [ 10kΩ ] (Pull-Down para garantir corte no boot / deep sleep)
                                  │
@@ -53,7 +53,7 @@ Quando o sensor de chuva é mantido energizado de forma contínua:
 | **Módulo MH-RD** | `GND` | **Coletor (C)** do BJT NPN | O polo negativo é aterrado apenas quando o BJT satura. |
 | **Módulo MH-RD** | `AO` | **GPIO 34** do ESP32 | Entrada analógica ADC1 canal 6 (sem interferência de Wi-Fi/ESP-NOW). |
 | **Módulo MH-RD** | `DO` | **GPIO 35** do ESP32 | Saída digital do comparador LM393 (com ajuste por potenciômetro). |
-| **BJT NPN (BC547/2N2222)** | `Base (B)` | **GPIO 23** via Resistor $R_B$ de 1kΩ | Corrente de base calculada: $I_B \approx \frac{3{,}3\text{V} - 0{,}7\text{V}}{1\text{k}\Omega} \approx 2{,}6\text{ mA}$. |
+| **BJT NPN (BC547/2N2222)** | `Base (B)` | **GPIO 14** via Resistor $R_B$ de 1kΩ | Corrente de base calculada: $I_B \approx \frac{3{,}3\text{V} - 0{,}7\text{V}}{1\text{k}\Omega} \approx 2{,}6\text{ mA}$. |
 | **BJT NPN** | `Coletor (C)` | Pino `GND` do MH-RD | Chaveia a corrente do sensor. |
 | **BJT NPN** | `Emissor (E)` | **GND** do ESP32 | Referência comum do circuito. |
 | **Resistor Pull-Down** | 10kΩ | Entre Base (B) e GND | Garante corte total durante resets, bootloader ou Deep Sleep. |
@@ -79,8 +79,8 @@ Quando o sensor de chuva é mantido energizado de forma contínua:
 ```cpp
 #include "../ESP_Periferico_Chuva/SensorChuvaMHRD.h"
 
-// Inicializa com controle BJT NPN na GPIO 23, AO na GPIO 34 e DO na GPIO 35
-SensorChuvaMHRD sensorChuva(23, 34, 35);
+// Inicializa com controle BJT NPN na GPIO 14, AO na GPIO 34 e DO na GPIO 35
+SensorChuvaMHRD sensorChuva(14, 34, 35);
 
 void setup() {
     sensorChuva.begin(); // Garante o BJT NPN em corte imediatamente

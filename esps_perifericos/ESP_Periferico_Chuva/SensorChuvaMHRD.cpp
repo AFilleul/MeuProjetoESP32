@@ -4,8 +4,8 @@
 // CONSTRUTORES
 // ============================================================================
 
-SensorChuvaMHRD::SensorChuvaMHRD(uint8_t pinoMosfetGate, uint8_t pinoAnalogicoAO, uint8_t pinoDigitalDO) {
-    _config.pinoMosfetGate        = pinoMosfetGate;
+SensorChuvaMHRD::SensorChuvaMHRD(uint8_t pinoBjtBase, uint8_t pinoAnalogicoAO, uint8_t pinoDigitalDO) {
+    _config.pinoBjtBase           = pinoBjtBase;
     _config.pinoAnalogicoAO       = pinoAnalogicoAO;
     _config.pinoDigitalDO         = pinoDigitalDO;
     _config.tempoEstabilizacaoMs  = 50;   // 50 ms para estabilização de tensão e carga capacitiva
@@ -23,13 +23,14 @@ SensorChuvaMHRD::SensorChuvaMHRD(const ConfigSensorChuva& config)
 // ============================================================================
 
 void SensorChuvaMHRD::begin() {
-    // Configura o pino de controle do MOSFET Canal N
-    pinMode(_config.pinoMosfetGate, OUTPUT);
+    // Configura o pino de controle da Base do BJT NPN
+    pinMode(_config.pinoBjtBase, OUTPUT);
 
-    // GARANTIA DE CORTE: Inicia com o MOSFET desligado (Gate = LOW).
-    // Assim, o caminho do GND do sensor fica aberto e a placa de chuva
-    // permanece totalmente desenergizada, eliminando eletrólise e consumo de corrente.
-    digitalWrite(_config.pinoMosfetGate, LOW);
+    // GARANTIA DE CORTE: Inicia com o transistor BJT NPN cortado (Base = LOW).
+    // Sem corrente de base (Ib = 0), o coletor fica isolado do emissor (Ic = 0).
+    // O pino GND do sensor fica desconectado e a placa de chuva permanece 
+    // totalmente desenergizada, eliminando eletrólise e consumo de corrente.
+    digitalWrite(_config.pinoBjtBase, LOW);
 
     // Configura pinos de leitura do ESP32
     pinMode(_config.pinoAnalogicoAO, INPUT);
@@ -43,19 +44,20 @@ void SensorChuvaMHRD::begin() {
 }
 
 // ============================================================================
-// CONTROLE DE ENERGIA (MOSFET LOW-SIDE SWITCH)
+// CONTROLE DE ENERGIA (BJT NPN LOW-SIDE SWITCH)
 // ============================================================================
 
 void SensorChuvaMHRD::ligarSensor() {
-    // Aplica nível alto (3.3V) no Gate do MOSFET Canal N.
-    // O transistor entra em saturação (condução), conectando o pino GND do sensor ao GND comum do ESP32.
-    digitalWrite(_config.pinoMosfetGate, HIGH);
+    // Aplica nível alto (3.3V) na Base do BJT NPN através do resistor de base (ex: 1kΩ).
+    // O transistor entra em SATURAÇÃO (Vce_sat ≈ 0.1V), conectando o pino GND do sensor
+    // (no Coletor) ao GND comum do circuito (no Emissor).
+    digitalWrite(_config.pinoBjtBase, HIGH);
 }
 
 void SensorChuvaMHRD::desligarSensor() {
-    // Aplica nível baixo (0V) no Gate do MOSFET.
-    // O transistor entra em corte, interrompendo o fluxo de elétrons pelo polo negativo do sensor.
-    digitalWrite(_config.pinoMosfetGate, LOW);
+    // Aplica nível baixo (0V) na Base do BJT NPN.
+    // O transistor entra em CORTE, interrompendo a corrente de coletor e desligando o sensor.
+    digitalWrite(_config.pinoBjtBase, LOW);
 }
 
 // ============================================================================
@@ -121,7 +123,7 @@ LeituraSensorChuva SensorChuvaMHRD::realizarLeitura() {
     LeituraSensorChuva resultado = {};
     unsigned long tInicio = millis();
 
-    // 1. ENERGIZAÇÃO: Ativa o Gate do MOSFET Canal N
+    // 1. ENERGIZAÇÃO: Satura o transistor BJT NPN (Base = HIGH)
     ligarSensor();
 
     // 2. ESTABILIZAÇÃO: Aguarda estabilizar a alimentação do comparador LM393 e a tensão nas trilhas
@@ -134,7 +136,7 @@ LeituraSensorChuva SensorChuvaMHRD::realizarLeitura() {
     int valorDigital = digitalRead(_config.pinoDigitalDO);
     resultado.limiarDigitalDisparado = (valorDigital == LOW);
 
-    // 4. DESENERGIZAÇÃO IMEDIATA: Corta a energia desligando o MOSFET
+    // 4. DESENERGIZAÇÃO IMEDIATA: Corta o BJT NPN (Base = LOW)
     desligarSensor();
 
     resultado.tempoSensorLigadoMs = millis() - tInicio;
@@ -156,18 +158,18 @@ void SensorChuvaMHRD::imprimirLeituraSerial(const LeituraSensorChuva& leitura) {
     Serial.println("|          RELATORIO DE LEITURA - SENSOR DE CHUVA MH-RD       |");
     Serial.println("+-------------------------------------------------------------+");
     
-    // Status do Chaveamento
-    Serial.printf("| Controle MOSFET (Gate): DESLIGADO (Energizado por apenas %lu ms)\n", (unsigned long)leitura.tempoSensorLigadoMs);
-    Serial.println("| Protecao Eletroquimica: Trilhas isoladas (0 uA de corrosao) |");
+    // Status do Chaveamento com BJT NPN
+    Serial.printf("| Controle Transistor BJT: CORTE (Energizado por apenas %lu ms) |\n", (unsigned long)leitura.tempoSensorLigadoMs);
+    Serial.println("| Protecao Eletroquimica : Trilhas isoladas (0 uA de corrosao)|");
     Serial.println("+-------------------------------------------------------------+");
 
     // Medições Físicas
-    Serial.printf("| ADC Bruto (12 bits)   : %4u / 4095                         |\n", leitura.valorAdcBruto);
-    Serial.printf("| Tensao no Pino AO     : %4.2f V                             |\n", leitura.tensaoVolts);
-    Serial.printf("| Intensidade de Chuva  : %5.1f %%                             |\n", leitura.porcentagemIntensidade);
+    Serial.printf("| ADC Bruto (12 bits)    : %4u / 4095                        |\n", leitura.valorAdcBruto);
+    Serial.printf("| Tensao no Pino AO      : %4.2f V                            |\n", leitura.tensaoVolts);
+    Serial.printf("| Intensidade de Chuva   : %5.1f %%                            |\n", leitura.porcentagemIntensidade);
     
     // Saída Digital do Comparador (DO)
-    Serial.printf("| Limiar Digital (DO)   : %-36s|\n", 
+    Serial.printf("| Limiar Digital (DO)    : %-35s|\n", 
                   leitura.limiarDigitalDisparado ? "[ATIVADO] Agua acima do limiar" : "[DESATIVADO] Abaixo do limiar");
 
     // Diagnóstico Qualitativo
@@ -180,7 +182,7 @@ void SensorChuvaMHRD::imprimirLeituraSerial(const LeituraSensorChuva& leitura) {
         tagEstado = "[ CHUVA MODERADA A FORTE ]";
     }
 
-    Serial.printf("| Classificacao Climatica: %-12s %-22s|\n", tagEstado, leitura.descricaoEstado);
+    Serial.printf("| Classificacao Climatica: %-12s %-21s|\n", tagEstado, leitura.descricaoEstado);
     Serial.println("+-------------------------------------------------------------+");
 }
 

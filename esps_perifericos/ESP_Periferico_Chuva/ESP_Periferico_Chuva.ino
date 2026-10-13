@@ -5,8 +5,8 @@
 // DEFINIÇÃO DE PINOS DO ESP32
 // ============================================================================
 
-// Pino que aciona o Gate do MOSFET Canal N (Low-Side Switch)
-#define PIN_MOSFET_GATE    23   // GPIO 23: Saída digital para controle de energia
+// Pino que aciona a Base do Transistor BJT NPN (Low-Side Switch)
+#define PIN_BJT_BASE       23   // GPIO 23: Saída digital para controle de saturação/corte do BJT
 
 // Pinos de leitura do sensor MH-RD (módulo comparador LM393)
 #define PIN_SENSOR_AO      34   // GPIO 34: ADC1_CH6 (Entrada analógica segura, imune a conflitos de rádio)
@@ -21,7 +21,7 @@
 
 // Instância com parametrização customizada
 ConfigSensorChuva cfgChuva = {
-    .pinoMosfetGate        = PIN_MOSFET_GATE,
+    .pinoBjtBase           = PIN_BJT_BASE,
     .pinoAnalogicoAO       = PIN_SENSOR_AO,
     .pinoDigitalDO         = PIN_SENSOR_DO,
     .tempoEstabilizacaoMs  = 50,    // 50 ms de estabilização
@@ -46,19 +46,19 @@ void setup() {
 
     Serial.println("\n=============================================================");
     Serial.println("  SISTEMA IOT ESP32 - MONITORAMENTO DE CHUVA INTELIGENTE");
-    Serial.println("  Otimizacao de Energia & Protecao contra Eletrolise (MH-RD)");
+    Serial.println("  Otimizacao de Energia & Chaveamento com Transistor BJT NPN");
     Serial.println("=============================================================");
-    Serial.printf("  -> MOSFET Gate (GND Switch): GPIO %d\n", PIN_MOSFET_GATE);
-    Serial.printf("  -> Entrada Analogica (AO)  : GPIO %d (ADC1 - 12 bits)\n", PIN_SENSOR_AO);
-    Serial.printf("  -> Entrada Digital (DO)    : GPIO %d\n", PIN_SENSOR_DO);
-    Serial.printf("  -> Tempo de Estabilizacao  : %d ms\n", cfgChuva.tempoEstabilizacaoMs);
-    Serial.printf("  -> Intervalo entre Ciclos  : %d s\n", INTERVALO_LEITURA_MS / 1000);
+    Serial.printf("  -> BJT NPN Base (GND Switch): GPIO %d\n", PIN_BJT_BASE);
+    Serial.printf("  -> Entrada Analogica (AO)   : GPIO %d (ADC1 - 12 bits)\n", PIN_SENSOR_AO);
+    Serial.printf("  -> Entrada Digital (DO)     : GPIO %d\n", PIN_SENSOR_DO);
+    Serial.printf("  -> Tempo de Estabilizacao   : %d ms\n", cfgChuva.tempoEstabilizacaoMs);
+    Serial.printf("  -> Intervalo entre Ciclos   : %d s\n", INTERVALO_LEITURA_MS / 1000);
     Serial.println("=============================================================");
 
-    // Inicializa o sensor (configura pinos e garante que o MOSFET inicie em CORTE)
+    // Inicializa o sensor (configura pinos e garante que o BJT inicie em CORTE)
     sensorChuva.begin();
 
-    Serial.println("[OK] Sensor inicializado com sucesso. MOSFET em corte (0V no Gate).");
+    Serial.println("[OK] Sensor inicializado com sucesso. Transistor BJT NPN em CORTE (0V na Base).");
     Serial.println("[OK] Aguardando o primeiro ciclo de leitura...\n");
 }
 
@@ -73,7 +73,7 @@ void loop() {
         ultimaLeituraMs = agora;
         contadorCiclos++;
 
-        // 1. Executa a leitura inteligente com ativação transitória do MOSFET
+        // 1. Executa a leitura inteligente com ativação transitória do transistor BJT NPN
         LeituraSensorChuva leitura = sensorChuva.realizarLeitura();
         tempoTotalAtivoSensorMs += leitura.tempoSensorLigadoMs;
 
@@ -87,10 +87,10 @@ void loop() {
             : 0.0f;
         float economiaEnergia = 100.0f - percentualTempoLigado;
 
-        Serial.printf("| Ciclo de Amostragem   : #%-4u                                |\n", contadorCiclos);
-        Serial.printf("| Duty Cycle do Sensor  : %4.2f %% (Economia: %4.2f %% de energia)  |\n", 
+        Serial.printf("| Ciclo de Amostragem   : #%-4u                                 |\n", contadorCiclos);
+        Serial.printf("| Duty Cycle do Sensor  : %4.2f %% (Economia: %4.2f %% de energia)   |\n", 
                       percentualTempoLigado, economiaEnergia);
-        Serial.printf("| Fator Vida Util Trilha: Aumento de aproximadamente %.0fx!        |\n", 
+        Serial.printf("| Fator Vida Util Trilha: Aumento de aproximadamente %.0fx!         |\n", 
                       (percentualTempoLigado > 0) ? (100.0f / percentualTempoLigado) : 100.0f);
         Serial.println("+-------------------------------------------------------------+\n");
     }

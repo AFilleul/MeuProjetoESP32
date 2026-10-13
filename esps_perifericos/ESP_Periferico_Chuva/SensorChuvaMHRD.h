@@ -4,7 +4,7 @@
 #include <Arduino.h>
 
 // ============================================================================
-// CONFIGURAÇÃO DO SENSOR DE CHUVA (MH-RD) COM CHAVEAMENTO MOSFET CANAL N
+// CONFIGURAÇÃO DO SENSOR DE CHUVA (MH-RD) COM CHAVEAMENTO TRANSISTOR BJT NPN
 // ============================================================================
 
 // Classificação qualitativa da condição climática
@@ -16,7 +16,7 @@ enum EstadoChuva : uint8_t {
 
 // Estrutura de configuração de pinos e calibração
 struct ConfigSensorChuva {
-    uint8_t pinoMosfetGate;       // GPIO que aciona o Gate do MOSFET Canal N (Low-Side Switch)
+    uint8_t pinoBjtBase;          // GPIO conectado à Base do BJT NPN através de resistor limitador
     uint8_t pinoAnalogicoAO;      // GPIO conectado à saída analógica (AO) do sensor (ADC1 seguro)
     uint8_t pinoDigitalDO;        // GPIO conectado à saída digital (DO) do comparador LM393
     uint16_t tempoEstabilizacaoMs;// Tempo (ms) para estabilizar a tensão antes da leitura (ex: 50 ms)
@@ -41,22 +41,22 @@ struct LeituraSensorChuva {
 // ============================================================================
 class SensorChuvaMHRD {
 public:
-    // Construtor simplificado com pinos padrão
-    SensorChuvaMHRD(uint8_t pinoMosfetGate = 23, 
+    // Construtor simplificado com pinos padrão (BJT NPN na Base)
+    SensorChuvaMHRD(uint8_t pinoBjtBase = 23, 
                     uint8_t pinoAnalogicoAO = 34, 
                     uint8_t pinoDigitalDO = 35);
 
     // Construtor detalhado via estrutura de configuração
     SensorChuvaMHRD(const ConfigSensorChuva& config);
 
-    // Inicializa os pinos e garante que o MOSFET inicie em corte (sensor desligado)
+    // Inicializa os pinos e garante que o BJT inicie em corte (sensor desenergizado)
     void begin();
 
     // Executa o ciclo completo de chaveamento:
-    // 1. Liga MOSFET (HIGH)
+    // 1. Satura o BJT NPN aplicando HIGH na Base
     // 2. Aguarda estabilização (50 ms)
     // 3. Amostra e lê AO e DO
-    // 4. Desliga MOSFET imediatamente (LOW)
+    // 4. Corta o BJT NPN aplicando LOW na Base (sensor desligado)
     // 5. Processa e classifica os dados
     LeituraSensorChuva realizarLeitura();
 

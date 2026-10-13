@@ -91,6 +91,10 @@ void handleGetStatus() {
         json += "    \"⚠️ Nenhum ESP periférico conectado ao Central no momento.\",\n";
         json += "    \"ℹ️ Aguardando comunicação dos microcontroladores periféricos via ESP-NOW...\"\n";
     } else {
+        std::vector<String> dynamicNotifs = deviceManager.getAndClearNotifications();
+        for (const auto& dn : dynamicNotifs) {
+            json += "    \"" + dn + "\",\n";
+        }
         bool hasOffline = !offlineDevs.empty();
         if (hasOffline) {
             for (const auto& devName : offlineDevs) {
@@ -119,6 +123,80 @@ void handlePostConfig() {
         String body = server.arg("plain");
         Serial.println("\n[API REST] Nova configuracao recebida da interface web:");
         Serial.println(body);
+
+        // Parsing do payload JSON enviado pela interface web: {"espId": "esp-2", "field": "interval", "value": 30}
+        String espId = "";
+        String field = "";
+        String valueStr = "";
+
+        int idPos = body.indexOf("\"espId\":");
+        if (idPos != -1) {
+            int q1 = body.indexOf("\"", idPos + 8);
+            int q2 = body.indexOf("\"", q1 + 1);
+            if (q1 != -1 && q2 != -1) espId = body.substring(q1 + 1, q2);
+        }
+
+        int fieldPos = body.indexOf("\"field\":");
+        if (fieldPos != -1) {
+            int q1 = body.indexOf("\"", fieldPos + 8);
+            int q2 = body.indexOf("\"", q1 + 1);
+            if (q1 != -1 && q2 != -1) field = body.substring(q1 + 1, q2);
+        }
+
+        int valPos = body.indexOf("\"value\":");
+        if (valPos != -1) {
+            int startVal = valPos + 8;
+            while (startVal < body.length() && (body[startVal] == ' ' || body[startVal] == ':')) startVal++;
+            if (body[startVal] == '\"') {
+                int endVal = body.indexOf("\"", startVal + 1);
+                if (endVal != -1) valueStr = body.substring(startVal + 1, endVal);
+            } else {
+                int endVal = startVal;
+                while (endVal < body.length() && body[endVal] != ',' && body[endVal] != '}') endVal++;
+                valueStr = body.substring(startVal, endVal);
+                valueStr.trim();
+            }
+        }
+
+        if (espId.length() > 0 && field.length() > 0) {
+            Device* dev = deviceManager.getDevice(espId);
+            if (!dev) {
+                deviceManager.registerDevice(espId, espId);
+                dev = deviceManager.getDevice(espId);
+            }
+
+            uint16_t novoIntervalo = 0;
+            String novoModo = "";
+            String novoNome = "";
+
+            if (field == "interval") {
+                novoIntervalo = (uint16_t)valueStr.toInt();
+            } else if (field == "mode") {
+                novoModo = valueStr;
+            } else if (field == "name") {
+                novoNome = valueStr;
+            }
+
+            // Enfileira a configuração no registro do DeviceManager
+            deviceManager.queueConfig(espId, novoIntervalo, novoModo, novoNome);
+
+            // Se o nó estiver ONLINE no momento com MAC registrado, despacha imediatamente via ESP-NOW
+            PacoteConfiguracao cfgEnvio;
+            uint8_t macDest[6];
+            if (dev && dev->hasMac && dev->isOnline && dev->connectivity == "ONLINE") {
+                if (deviceManager.getPendingConfig(espId, cfgEnvio, macDest)) {
+                    Serial.printf("[API REST] Periférico '%s' está ONLINE! Despachando configuração via ESP-NOW imediatamente...\n", espId.c_str());
+                    espNowCentral.enviarConfiguracao(macDest, cfgEnvio);
+                    server.send(200, "application/json", "{\"status\":\"sent\",\"message\":\"Configuracao despachada diretamente via ESP-NOW\"}");
+                    return;
+                }
+            }
+
+            Serial.printf("[API REST] Periférico '%s' está em repouso/offline. Mantida na fila do ESP Central para envio quando o nó acordar.\n", espId.c_str());
+            server.send(200, "application/json", "{\"status\":\"queued\",\"message\":\"Configuracao armazenada na fila de sincronizacao\"}");
+            return;
+        }
+
         server.send(200, "application/json", "{\"status\":\"ok\",\"message\":\"Configuracao gravada com sucesso!\"}");
     } else {
         server.send(400, "application/json", "{\"status\":\"error\",\"message\":\"Requisicao sem conteudo\"}");
@@ -191,17 +269,39 @@ void setup() {
 
     // Inicializa o ESP-NOW para recepção de telemetria dos nós periféricos
     espNowCentral.iniciar(ESPNOW_WIFI_CHANNEL, false);
+    
+    // Callback 1: Recepção de telemetria dos sensores e despacho imediato de filas pendentes
     espNowCentral.definirCallbackRecepcao([](const uint8_t* mac, const PacoteDadosSensores& dados) {
         char macStr[18];
         snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X",
                  mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
         
-        Serial.printf("[CENTRAL] Dados recebidos do nó periférico: %s (%s) | Umidade: %.1f%% | Bateria: %d%%\n", 
+        Serial.printf("\n[CENTRAL] Telemetria recebida do nó: %s (%s) | Umidade: %.1f%% | Bateria: %d%%\n", 
                       dados.nodeName, dados.nodeId, dados.sensorUmidade, dados.bateriaPct);
+        
         if (!deviceManager.hasDevice(dados.nodeId)) {
             deviceManager.registerDevice(dados.nodeId, dados.nodeName, macStr);
         }
+        deviceManager.setDeviceMac(dados.nodeId, mac);
         deviceManager.updateTelemetry(dados.nodeId, dados.sensorUmidade, dados.bateriaPct, dados.modoOperacao, dados.tempoUptimeSegundos);
+
+        // FILA DE SINCRONIZAÇÃO: Se houver alteração pendente enviada pela Interface Web, despacha agora!
+        PacoteConfiguracao cfgPendente;
+        uint8_t macDest[6];
+        if (deviceManager.getPendingConfig(dados.nodeId, cfgPendente, macDest)) {
+            Serial.printf("[CENTRAL] Nó '%s' acordou! Despachando configuração da fila de sincronização via ESP-NOW...\n", dados.nodeId);
+            espNowCentral.enviarConfiguracao(mac, cfgPendente);
+        }
+    });
+
+    // Callback 2: Confirmação (ACK) de configuração aplicada com sucesso no periférico
+    espNowCentral.definirCallbackAckConfig([](const uint8_t* mac, const PacoteAckConfig& ack) {
+        Serial.printf("\n[CENTRAL] ACK de configuração confirmado pelo periférico '%s'! Status: %s\n",
+                      ack.nodeId, ack.sucesso ? "SUCESSO" : "ERRO");
+        if (ack.sucesso) {
+            deviceManager.clearPendingConfig(ack.nodeId);
+            deviceManager.addNotification(String("✓ Configuração sincronizada com sucesso no nó '") + ack.nodeId + "'!");
+        }
     });
 
     // Registra rotas da API REST

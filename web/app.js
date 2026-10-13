@@ -1622,11 +1622,19 @@ async function sendConfigToRemoteAPI(espId, field, value) {
     }
 
     try {
-        await fetch(`${AppState.api.baseUrl}/api/config`, {
+        const res = await fetch(`${AppState.api.baseUrl}/api/config`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ espId, field, value })
         });
+        if (res.ok) {
+            const data = await res.json();
+            if (data.status === 'sent') {
+                showToastNotification(`✓ Configuração despachada diretamente ao ${espId} via ESP-NOW!`);
+            } else if (data.status === 'queued') {
+                showToastNotification(`⏳ Nó em repouso. Comando mantido na fila do ESP Central para quando acordar.`);
+            }
+        }
     } catch (err) {
         console.error('[Fetch] Erro ao enviar configuração para ESP32:', err);
     }

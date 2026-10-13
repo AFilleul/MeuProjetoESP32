@@ -280,3 +280,88 @@ void DeviceManager::printDevices() const {
     }
     Serial.println("============================================================\n");
 }
+
+void DeviceManager::setDeviceMac(const String& id, const uint8_t* mac) {
+    Device* dev = getDevice(id);
+    if (dev != nullptr && mac != nullptr) {
+        memcpy(dev->macAddr, mac, 6);
+        dev->hasMac = true;
+    }
+}
+
+bool DeviceManager::getDeviceMac(const String& id, uint8_t* outMac) const {
+    const Device* dev = getDevice(id);
+    if (dev != nullptr && dev->hasMac && outMac != nullptr) {
+        memcpy(outMac, dev->macAddr, 6);
+        return true;
+    }
+    return false;
+}
+
+void DeviceManager::queueConfig(const String& id, uint16_t novoIntervaloMin, const String& novoModo, const String& novoNome) {
+    Device* dev = getDevice(id);
+    if (dev == nullptr) return;
+
+    dev->hasPendingConfig = true;
+    dev->pendingConfig.tipo = MSG_CONFIG_PARAMETROS;
+    strncpy(dev->pendingConfig.targetNodeId, id.c_str(), sizeof(dev->pendingConfig.targetNodeId) - 1);
+    dev->pendingConfig.targetNodeId[sizeof(dev->pendingConfig.targetNodeId) - 1] = '\0';
+    
+    if (novoIntervaloMin > 0) {
+        dev->pendingConfig.novoIntervaloMin = novoIntervaloMin;
+        setInterval(id, String(novoIntervaloMin) + " min");
+    }
+    if (novoModo.length() > 0) {
+        strncpy(dev->pendingConfig.novoModo, novoModo.c_str(), sizeof(dev->pendingConfig.novoModo) - 1);
+        dev->pendingConfig.novoModo[sizeof(dev->pendingConfig.novoModo) - 1] = '\0';
+        dev->mode = novoModo;
+    }
+    if (novoNome.length() > 0) {
+        strncpy(dev->pendingConfig.novoNome, novoNome.c_str(), sizeof(dev->pendingConfig.novoNome) - 1);
+        dev->pendingConfig.novoNome[sizeof(dev->pendingConfig.novoNome) - 1] = '\0';
+        dev->name = novoNome;
+    }
+    dev->pendingConfig.timestampMillis = millis();
+
+    Serial.printf("[DeviceManager] Configuracao enfileirada para o periferico '%s' (Intervalo: %d min, Modo: %s, Nome: %s)\n",
+                  id.c_str(), dev->pendingConfig.novoIntervaloMin, dev->pendingConfig.novoModo, dev->pendingConfig.novoNome);
+}
+
+bool DeviceManager::hasPendingConfig(const String& id) const {
+    const Device* dev = getDevice(id);
+    return (dev != nullptr && dev->hasPendingConfig);
+}
+
+bool DeviceManager::getPendingConfig(const String& id, PacoteConfiguracao& outCfg, uint8_t* outMac) const {
+    const Device* dev = getDevice(id);
+    if (dev != nullptr && dev->hasPendingConfig) {
+        memcpy(&outCfg, &dev->pendingConfig, sizeof(PacoteConfiguracao));
+        if (outMac != nullptr && dev->hasMac) {
+            memcpy(outMac, dev->macAddr, 6);
+        }
+        return true;
+    }
+    return false;
+}
+
+void DeviceManager::clearPendingConfig(const String& id) {
+    Device* dev = getDevice(id);
+    if (dev != nullptr) {
+        dev->hasPendingConfig = false;
+        memset(&dev->pendingConfig, 0, sizeof(dev->pendingConfig));
+        Serial.printf("[DeviceManager] Fila de configuracao limpa para o periferico '%s'.\n", id.c_str());
+    }
+}
+
+void DeviceManager::addNotification(const String& msg) {
+    pendingNotifications.push_back(msg);
+    if (pendingNotifications.size() > 10) {
+        pendingNotifications.erase(pendingNotifications.begin());
+    }
+}
+
+std::vector<String> DeviceManager::getAndClearNotifications() {
+    std::vector<String> notifs = pendingNotifications;
+    pendingNotifications.clear();
+    return notifs;
+}

@@ -162,7 +162,16 @@ void setup() {
         // 2. Monta pacote e envia Unicast direto
         PacoteDadosSensores dados = montarPacoteSensores(tempoInicioMs);
         espNowNode.enviarDadosUnicast(dados);
-        delay(60); // Breve espera para o rádio esvaziar o buffer
+        
+        // Breve janela de escuta (250 ms) para capturar eventual configuração pendente enviada pelo Central
+        unsigned long tEspera = millis();
+        while (millis() - tEspera < 250) {
+            delay(10);
+            if (espNowNode.temConfiguracaoRecebida()) {
+                Serial.println("[CICLO WAKEUP] Nova configuração pendente recebida e aplicada com sucesso!");
+                break;
+            }
+        }
     } else {
         Serial.println("[CICLO WAKEUP] Central indisponivel neste ciclo. Retornando ao sono.");
     }

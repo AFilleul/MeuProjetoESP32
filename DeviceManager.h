@@ -3,6 +3,7 @@
 
 #include <Arduino.h>
 #include <vector>
+#include "ProtocoloMensagens.h"
 
 // Estrutura que representa cada dispositivo/nó registrado
 struct Device {
@@ -13,6 +14,11 @@ struct Device {
     bool isOnline;              // Estado atual de conexão
     String connectivity;        // "ONLINE", "DORMINDO" ou "OFFLINE"
     unsigned long lastSeen;     // Timestamp do último contato em millis()
+
+    uint8_t macAddr[6];         // Endereço MAC físico para envio via ESP-NOW
+    bool hasMac;                // Indica se o MAC já foi capturado via telemetria
+    bool hasPendingConfig;      // Indica se há configuração aguardando despacho para este nó
+    PacoteConfiguracao pendingConfig; // Pacote de configuração enfileirado
 
     // Telemetria e configurações do nó agrícola
     String mode;
@@ -33,6 +39,8 @@ struct Device {
           isOnline(true), 
           connectivity("ONLINE"),
           lastSeen(millis()),
+          hasMac(false),
+          hasPendingConfig(false),
           mode("DEEP SLEEP"),
           sensorValue("--"),
           interval("60 min"),
@@ -41,12 +49,16 @@ struct Device {
           batteryPct(100),
           powerSource("BATTERY"),
           batteryCapacityMah(2500),
-          uptimeHours(1) {}
+          uptimeHours(1) {
+              memset(macAddr, 0, sizeof(macAddr));
+              memset(&pendingConfig, 0, sizeof(pendingConfig));
+          }
 };
 
 class DeviceManager {
 private:
     std::vector<Device> devices;        // Lista dinâmica de dispositivos
+    std::vector<String> pendingNotifications; // Notificações para entregar à interface web
     size_t minFreeHeapSafety;           // Margem de segurança de heap livre (em bytes)
     static const size_t ESTIMATED_BYTES_PER_DEVICE = 128; // Estimativa média de RAM por dispositivo
 
@@ -76,6 +88,18 @@ public:
     void setInterval(const String& id, const String& intervalStr);
     void checkKeepAlive(unsigned long timeoutMs = 60000);
     void checkScheduleTimeout(unsigned long toleranciaMs = 30000);
+
+    // Gerenciamento de MAC Físico e Fila de Sincronização (Interface Web <-> Periféricos)
+    void setDeviceMac(const String& id, const uint8_t* mac);
+    bool getDeviceMac(const String& id, uint8_t* outMac) const;
+    void queueConfig(const String& id, uint16_t novoIntervaloMin, const String& novoModo, const String& novoNome);
+    bool hasPendingConfig(const String& id) const;
+    bool getPendingConfig(const String& id, PacoteConfiguracao& outCfg, uint8_t* outMac) const;
+    void clearPendingConfig(const String& id);
+
+    // Notificações Dinâmicas para a Interface Web
+    void addNotification(const String& msg);
+    std::vector<String> getAndClearNotifications();
 
     // Utilitário de conversão de tempo
     static unsigned long parseIntervalToMs(const String& intervalStr);

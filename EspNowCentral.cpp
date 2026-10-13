@@ -3,7 +3,10 @@
 
 EspNowCentral* EspNowCentral::instancia = nullptr;
 
-EspNowCentral::EspNowCentral() : canalWifi(ESPNOW_WIFI_CHANNEL), onSensorData(nullptr) {
+EspNowCentral::EspNowCentral() 
+    : canalWifi(ESPNOW_WIFI_CHANNEL), 
+      onSensorData(nullptr), 
+      onAckConfig(nullptr) {
     instancia = this;
     memset(broadcastMac, 0xFF, sizeof(broadcastMac)); // FF:FF:FF:FF:FF:FF
 }
@@ -85,7 +88,6 @@ bool EspNowCentral::enviarBroadcastBeacon(const char* identificador) {
 
     esp_err_t res = esp_now_send(broadcastMac, reinterpret_cast<const uint8_t*>(&beacon), sizeof(beacon));
     if (res == ESP_OK) {
-        Serial.printf("[ESP-NOW Central] Broadcast Beacon enviado (\"%s\").\n", identificador);
         return true;
     } else {
         Serial.printf("[ESP-NOW Central] Falha ao enviar Broadcast: 0x%02X\n", res);
@@ -93,8 +95,30 @@ bool EspNowCentral::enviarBroadcastBeacon(const char* identificador) {
     }
 }
 
+bool EspNowCentral::enviarConfiguracao(const uint8_t* macPeriferico, const PacoteConfiguracao& config) {
+    // Garante que o periférico está registrado como peer
+    if (!registrarPeer(macPeriferico, canalWifi, false)) {
+        Serial.println("[ESP-NOW Central] Erro: Impossivel registrar peer para envio de configuracao.");
+        return false;
+    }
+
+    esp_err_t res = esp_now_send(macPeriferico, reinterpret_cast<const uint8_t*>(&config), sizeof(config));
+    if (res == ESP_OK) {
+        Serial.printf("[ESP-NOW Central] Pacote de Configuracao enviado com sucesso para %02X:%02X:%02X:%02X:%02X:%02X!\n",
+                      macPeriferico[0], macPeriferico[1], macPeriferico[2], macPeriferico[3], macPeriferico[4], macPeriferico[5]);
+        return true;
+    } else {
+        Serial.printf("[ESP-NOW Central] Falha ao despachar configuracao: 0x%02X\n", res);
+        return false;
+    }
+}
+
 void EspNowCentral::definirCallbackRecepcao(SensorDataCallback callback) {
     this->onSensorData = callback;
+}
+
+void EspNowCentral::definirCallbackAckConfig(AckConfigCallback callback) {
+    this->onAckConfig = callback;
 }
 
 String EspNowCentral::getMacAddressString() const {
@@ -117,27 +141,45 @@ void EspNowCentral::onDataReceive(const uint8_t* mac_addr, const uint8_t* data, 
 
     uint8_t tipo = data[0];
 
-    // Se for pacote de telemetria dos sensores enviado por um periférico
+    // 1. PACOTE DE TELEMETRIA DOS SENSORES (UNICAST)
     if (tipo == MSG_DADOS_SENSORES && dataLen == sizeof(PacoteDadosSensores)) {
         PacoteDadosSensores dados;
         memcpy(&dados, data, sizeof(PacoteDadosSensores));
 
-        Serial.printf("\n[ESP-NOW Central] Pacote Unicast recebido de [%s]:\n", dados.nodeMac);
-        Serial.printf("  Nó: %s (%s) | Modo: %s | Ciclo Wakeup: #%u\n", dados.nodeId, dados.nodeName, dados.modoOperacao, dados.cicloWakeup);
-        Serial.printf("  Sensor Umidade: %.1f%% | Bateria: %d%% (%u mV)\n", dados.sensorUmidade, dados.bateriaPct, dados.bateriaMv);
+        // Registra automaticamente o periférico como peer no Central
+        instancia->registrarPeer(mac, instancia->canalWifi, false);
 
-        // Dispara o callback do usuário se configurado
+        Serial.printf("\n[ESP-NOW Central] Telemetria recebida de [%s]:\n", dados.nodeMac);
+        Serial.printf("  Nó: %s (%s) | Modo: %s | Ciclo: #%u\n", 
+                      dados.nodeId, dados.nodeName, dados.modoOperacao, dados.cicloWakeup);
+        Serial.printf("  Sensor Umidade: %.1f%% | Bateria: %d%% (%u mV)\n", 
+                      dados.sensorUmidade, dados.bateriaPct, dados.bateriaMv);
+
+        if (dados.pareamentoAtivo) {
+            Serial.println("  *** [PAREAMENTO ATIVO] Este nó realizou Hard Reset e está ONLINE aguardando configurações! ***");
+        }
+
         if (instancia->onSensorData) {
             instancia->onSensorData(mac, dados);
         }
-    } else {
-        Serial.printf("[ESP-NOW Central] Pacote recebido com tamanho %d bytes (Tipo 0x%02X desconhecido).\n", dataLen, tipo);
+    }
+    // 2. PACOTE DE ACK DE CONFIGURAÇÃO (UNICAST)
+    else if (tipo == MSG_ACK_CONFIG && dataLen == sizeof(PacoteAckConfig)) {
+        PacoteAckConfig ack;
+        memcpy(&ack, data, sizeof(PacoteAckConfig));
+
+        Serial.printf("\n[ESP-NOW Central] ACK de Configuracao recebido do nó [%s]:\n", ack.nodeId);
+        Serial.printf("  Status: %s | Intervalo Salvo: %d min | Modo Salvo: %s\n",
+                      ack.sucesso ? "SUCESSO" : "ERRO", ack.intervaloAplicadoMin, ack.modoAplicado);
+
+        if (instancia->onAckConfig) {
+            instancia->onAckConfig(mac, ack);
+        }
     }
 }
 
 void EspNowCentral::onDataSend(const uint8_t* mac_addr, esp_now_send_status_t status) {
-    // Status do envio (Broadcast sempre retorna Delivery Success no ESP-NOW por não exigir ACK)
     if (status != ESP_NOW_SEND_SUCCESS) {
-        Serial.println("[ESP-NOW Central] Alerta: Falha na entrega de pacote.");
+        Serial.println("[ESP-NOW Central] Alerta: Falha na confirmacao de entrega do pacote.");
     }
 }

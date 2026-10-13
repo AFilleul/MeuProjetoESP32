@@ -9,8 +9,9 @@
 
 class EspNowCentral {
 public:
-    // Tipo de callback para quando dados de um periférico forem recebidos
+    // Callbacks C++
     using SensorDataCallback = std::function<void(const uint8_t* mac, const PacoteDadosSensores& dados)>;
+    using AckConfigCallback  = std::function<void(const uint8_t* mac, const PacoteAckConfig& ack)>;
 
     EspNowCentral();
     ~EspNowCentral();
@@ -21,8 +22,12 @@ public:
     // Envia um pacote de Broadcast (FF:FF:FF:FF:FF:FF) anunciando o Central
     bool enviarBroadcastBeacon(const char* identificador = "CENTRAL_SITIO");
 
-    // Registra uma função/lambda do usuário para tratar os dados recebidos
+    // Envia uma configuração diretamente (Unicast) para um periférico
+    bool enviarConfiguracao(const uint8_t* macPeriferico, const PacoteConfiguracao& config);
+
+    // Registra callbacks do usuário
     void definirCallbackRecepcao(SensorDataCallback callback);
+    void definirCallbackAckConfig(AckConfigCallback callback);
 
     // Adiciona ou atualiza um peer no ESP-NOW
     bool registrarPeer(const uint8_t* macAddr, uint8_t canal = ESPNOW_WIFI_CHANNEL, bool encrypt = false);
@@ -34,6 +39,7 @@ private:
     uint8_t canalWifi;
     uint8_t broadcastMac[6];
     SensorDataCallback onSensorData;
+    AckConfigCallback onAckConfig;
 
     // Callbacks C nativos do ESP-NOW
     #if defined(ESP_IDF_VERSION_MAJOR) && (ESP_IDF_VERSION_MAJOR >= 5)

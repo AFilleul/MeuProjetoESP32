@@ -5,10 +5,12 @@
 // ============================================================================
 // ESP32 CENTRAL - PROTOCOLO ESP-NOW (COMUNICAÇÃO DIRETA SEM ROTEADOR)
 // ============================================================================
-// Este sketch exemplifica o ESP32 Central operando puramente via ESP-NOW:
+// Este sketch gerencia o ESP32 Central operando puramente via ESP-NOW:
 // 1. Transmite periodicamente Broadcast (FF:FF:FF:FF:FF:FF) anunciando o Central
 // 2. Recebe telemetria Unicast dos nós periféricos via callback C++
-// 3. Atualiza os dispositivos registrados no DeviceManager
+// 3. Detecta nós em "Modo Pareamento" (1 minuto online pós-hard reset) e despacha configurações
+// 4. Recebe confirmação (ACK) das configurações aplicadas pelos nós
+// 5. Atualiza os dispositivos registrados no DeviceManager
 // ============================================================================
 
 EspNowCentral espNowCentral;
@@ -29,6 +31,22 @@ void aoReceberDadosPeriferico(const uint8_t* mac, const PacoteDadosSensores& dad
     Serial.printf("  Umidade Solo: %.1f%%\n", dados.sensorUmidade);
     Serial.printf("  Bateria: %d%% (%u mV)\n", dados.bateriaPct, dados.bateriaMv);
     Serial.printf("  Modo de Energia: %s | Ciclo Wakeup: #%u\n", dados.modoOperacao, dados.cicloWakeup);
+    
+    // Se o periférico realizou Hard Reset e está em modo pareamento ativo (janela de 1 min)
+    if (dados.pareamentoAtivo) {
+        Serial.printf("  >>> NÓ EM PAREAMENTO ATIVO! (Online pós hard-reset)\n");
+        Serial.printf("  >>> Enviando parâmetros de configuração para '%s'...\n", dados.nodeId);
+
+        PacoteConfiguracao cfg = {};
+        cfg.tipo = MSG_CONFIG_PARAMETROS;
+        strncpy(cfg.targetNodeId, dados.nodeId, sizeof(cfg.targetNodeId) - 1);
+        cfg.novoIntervaloMin = 15; // Exemplo: define intervalo de 15 minutos
+        strncpy(cfg.novoModo, "DEEP_SLEEP", sizeof(cfg.novoModo) - 1);
+        strncpy(cfg.novoNome, "Solo Setor A (Configurado)", sizeof(cfg.novoNome) - 1);
+        cfg.timestampMillis = millis();
+
+        espNowCentral.enviarConfiguracao(mac, cfg);
+    }
     Serial.println("--------------------------------------------------------");
 
     // Registra ou atualiza no DeviceManager
@@ -37,6 +55,14 @@ void aoReceberDadosPeriferico(const uint8_t* mac, const PacoteDadosSensores& dad
     } else {
         deviceManager.updateLastSeen(dados.nodeId);
     }
+}
+
+// Callback disparado quando o periférico confirma que aplicou a configuração
+void aoReceberAckConfig(const uint8_t* mac, const PacoteAckConfig& ack) {
+    Serial.println("\n========================================================");
+    Serial.printf("[CENTRAL SUCESSO] Nó '%s' aplicou e confirmou a configuracao!\n", ack.nodeId);
+    Serial.printf("  Intervalo Salvo: %d minutos | Modo Salvo: %s\n", ack.intervaloAplicadoMin, ack.modoAplicado);
+    Serial.println("========================================================");
 }
 
 void setup() {
@@ -53,8 +79,9 @@ void setup() {
         while (true) delay(1000);
     }
 
-    // 2. Registra o callback para captura de mensagens Unicast dos periféricos
+    // 2. Registra os callbacks para mensagens Unicast dos periféricos
     espNowCentral.definirCallbackRecepcao(aoReceberDadosPeriferico);
+    espNowCentral.definirCallbackAckConfig(aoReceberAckConfig);
 
     Serial.printf("[CENTRAL] MAC do Central: %s\n", espNowCentral.getMacAddressString().c_str());
     Serial.println("[CENTRAL] Enviando Broadcast a cada 3s para descoberta de nós...\n");

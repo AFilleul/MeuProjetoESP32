@@ -516,6 +516,18 @@ function updateHeaderBadges() {
     }
 }
 
+// Rastreamento de movimento real do cursor para sincronização unificada de foco (evita brilho duplo)
+let lastMouseX = -1;
+let lastMouseY = -1;
+
+function mouseMoved(e) {
+    if (!e) return true;
+    if (e.clientX === lastMouseX && e.clientY === lastMouseY) return false;
+    lastMouseX = e.clientX;
+    lastMouseY = e.clientY;
+    return true;
+}
+
 // ----------------------------------------------------------------------------
 // Renderização do Menu Principal
 // ----------------------------------------------------------------------------
@@ -625,6 +637,14 @@ function renderStatusP1() {
             <td>${esp.lastUpdate}</td>
             <td><strong>${esp.sensorValue}</strong></td>
         `;
+
+        tr.addEventListener('mousemove', (e) => {
+            if (mouseMoved(e) && AppState.focusIndex !== globalIdx) {
+                AppState.focusIndex = globalIdx;
+                updateUI();
+            }
+        });
+
         tbody.appendChild(tr);
     });
 }
@@ -673,6 +693,14 @@ function renderStatusP2() {
             <td><strong>🕒 ${est.uptimeFormatted}</strong> <span style="font-size:0.75rem; color:#94a3b8;">(${est.powerSourceLabel})</span></td>
             <td>${queueHtml}</td>
         `;
+
+        tr.addEventListener('mousemove', (e) => {
+            if (mouseMoved(e) && AppState.focusIndex !== globalIdx) {
+                AppState.focusIndex = globalIdx;
+                updateUI();
+            }
+        });
+
         tbody.appendChild(tr);
     });
 }
@@ -714,7 +742,15 @@ function renderConfigList() {
             <span class="badge-status ${esp.connectivity.toLowerCase()}" style="margin-left:auto;">${esp.connectivity}</span>
         `;
 
+        card.addEventListener('mousemove', (e) => {
+            if (mouseMoved(e) && AppState.focusIndex !== idx) {
+                AppState.focusIndex = idx;
+                updateUI();
+            }
+        });
+
         card.addEventListener('click', () => {
+            AppState.focusIndex = idx;
             selectEspForConfig(esp.id);
         });
 
@@ -873,6 +909,14 @@ function initVirtualKeyboardGrid() {
 
             if (char === 'ESPAÇO') keyEl.classList.add('key-wide', 'key-space');
             if (char === 'APAGAR') keyEl.classList.add('key-backspace');
+
+            keyEl.addEventListener('mousemove', (e) => {
+                if (mouseMoved(e) && (AppState.vk.activeRow !== rIdx || AppState.vk.activeCol !== cIdx)) {
+                    AppState.vk.activeRow = rIdx;
+                    AppState.vk.activeCol = cIdx;
+                    renderVirtualKeyboard();
+                }
+            });
 
             keyEl.addEventListener('click', (e) => {
                 e.preventDefault();
@@ -1625,9 +1669,15 @@ function setupEventListeners() {
         });
     }
 
-    // 3. Ações de clique com mouse nas opções do Menu Principal
+    // 3. Ações de clique e foco com mouse nas opções do Menu Principal
     const menuStatus = document.getElementById('menu-opt-status');
     if (menuStatus) {
+        menuStatus.addEventListener('mousemove', (e) => {
+            if (mouseMoved(e) && AppState.focusIndex !== 0) {
+                AppState.focusIndex = 0;
+                updateUI();
+            }
+        });
         menuStatus.addEventListener('click', (e) => {
             e.preventDefault();
             AppState.focusIndex = 0;
@@ -1637,6 +1687,12 @@ function setupEventListeners() {
 
     const menuConfig = document.getElementById('menu-opt-config');
     if (menuConfig) {
+        menuConfig.addEventListener('mousemove', (e) => {
+            if (mouseMoved(e) && AppState.focusIndex !== 1) {
+                AppState.focusIndex = 1;
+                updateUI();
+            }
+        });
         menuConfig.addEventListener('click', (e) => {
             e.preventDefault();
             AppState.focusIndex = 1;
@@ -1735,8 +1791,14 @@ function setupEventListeners() {
         });
     }
 
-    // 7. Clique nas subopções de configuração do ESP
+    // 7. Clique e foco nas subopções de configuração do ESP
     document.querySelectorAll('.esp-subopt').forEach((el, idx) => {
+        el.addEventListener('mousemove', (e) => {
+            if (mouseMoved(e) && AppState.focusIndex !== idx) {
+                AppState.focusIndex = idx;
+                updateUI();
+            }
+        });
         el.addEventListener('click', (e) => {
             e.preventDefault();
             AppState.focusIndex = idx;
@@ -1744,8 +1806,14 @@ function setupEventListeners() {
         });
     });
 
-    // 8. Clique nos modos de energia
+    // 8. Clique e foco nos modos de energia
     document.querySelectorAll('.mode-card').forEach((el, idx) => {
+        el.addEventListener('mousemove', (e) => {
+            if (mouseMoved(e) && AppState.focusIndex !== idx) {
+                AppState.focusIndex = idx;
+                updateUI();
+            }
+        });
         el.addEventListener('click', (e) => {
             e.preventDefault();
             AppState.focusIndex = idx;
@@ -1753,8 +1821,14 @@ function setupEventListeners() {
         });
     });
 
-    // 9. Clique nas fontes de alimentação
+    // 9. Clique e foco nas fontes de alimentação
     document.querySelectorAll('.power-card').forEach((el, idx) => {
+        el.addEventListener('mousemove', (e) => {
+            if (mouseMoved(e) && AppState.focusIndex !== idx) {
+                AppState.focusIndex = idx;
+                updateUI();
+            }
+        });
         el.addEventListener('click', (e) => {
             e.preventDefault();
             AppState.focusIndex = idx;

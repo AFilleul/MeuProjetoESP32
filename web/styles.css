@@ -263,17 +263,15 @@ body, html {
     color: #e2e8f0;
 }
 
-/* Destaque do Indicador Retangular com Cantos Arredondados */
-.menu-option.active-target,
-.menu-option:hover {
+/* Destaque do Indicador Retangular com Cantos Arredondados - estritamente na opção ativa */
+.menu-option.active-target {
     background: rgba(0, 242, 254, 0.12);
     border-color: var(--primary-cyan);
     box-shadow: 0 0 25px var(--indicator-glow), inset 0 0 15px rgba(0, 242, 254, 0.1);
     transform: translateX(8px);
 }
 
-.menu-option.active-target .cursor-indicator,
-.menu-option:hover .cursor-indicator {
+.menu-option.active-target .cursor-indicator {
     visibility: visible;
     transform: translateX(0);
 }
@@ -723,7 +721,7 @@ kbd {
     font-family: var(--font-heading);
 }
 
-.esp-card-item.active-target, .esp-card-item:hover {
+.esp-card-item.active-target {
     border-color: #0284c7;
     background: #f0f9ff;
     box-shadow: 0 0 20px rgba(2, 132, 199, 0.3);
@@ -784,14 +782,14 @@ kbd {
     font-weight: 500;
 }
 
-.esp-subopt.active-target, .esp-subopt:hover {
+.esp-subopt.active-target {
     border-color: #0284c7;
     background: #f0f9ff;
     box-shadow: 0 0 20px rgba(2, 132, 199, 0.25);
     transform: translateX(8px);
 }
 
-.esp-subopt.active-target .cursor-indicator, .esp-subopt:hover .cursor-indicator {
+.esp-subopt.active-target .cursor-indicator {
     visibility: visible;
 }
 
@@ -1044,7 +1042,7 @@ kbd {
     color: #64748b;
 }
 
-.mode-card.active-target, .mode-card:hover {
+.mode-card.active-target {
     border-color: #0284c7;
     background: #f0f9ff;
     box-shadow: 0 0 20px rgba(2, 132, 199, 0.25);
@@ -1102,7 +1100,7 @@ kbd {
     line-height: 1.3;
 }
 
-.power-card.active-target, .power-card:hover {
+.power-card.active-target {
     border-color: #0284c7;
     background: #f0f9ff;
     box-shadow: 0 0 20px rgba(2, 132, 199, 0.25);

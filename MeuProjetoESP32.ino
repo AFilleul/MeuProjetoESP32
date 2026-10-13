@@ -5,6 +5,7 @@
 #include "secrets.h"
 #include "WifiManager.h"
 #include "DeviceManager.h"
+#include "EspNowCentral.h"
 
 // ============================================================================
 // SÍTIO ONLINE - SISTEMA DE MONITORAMENTO AGRÍCOLA ESP32
@@ -18,10 +19,12 @@
 
 WifiManager wifiManager(WIFI_SSID, WIFI_PASSWORD);
 DeviceManager deviceManager(30000); // 30 KB de margem de segurança de heap
+EspNowCentral espNowCentral;
 WebServer server(80);
 
-unsigned long ultimaLeituraSensor = 0;
-float umidadeSoloSimulada = 62.0;
+const unsigned long CICLO_RECEPCAO_MS = 60000; // Ciclo de 60 segundos
+const unsigned long DURACAO_JANELA_MS = 10000; // 10 segundos reservados para recepção de periféricos
+unsigned long ultimoBroadcastBeaconMs = 0;
 
 // ============================================================================
 // ROTAS DA REST API (PARA INTERFACE WEB NO COMPUTADOR)
@@ -41,69 +44,54 @@ void handleOptions() {
 void handleGetStatus() {
     adicionarCORS();
 
-    // Variação leve na leitura para demonstrar tempo real
-    if (millis() - ultimaLeituraSensor > 5000) {
-        ultimaLeituraSensor = millis();
-        umidadeSoloSimulada += (random(-20, 21) / 10.0);
-        if (umidadeSoloSimulada > 95.0) umidadeSoloSimulada = 95.0;
-        if (umidadeSoloSimulada < 20.0) umidadeSoloSimulada = 20.0;
-    }
+    // Cronograma da janela agendada de recepção de periféricos
+    unsigned long cicloAtualMs = millis() % CICLO_RECEPCAO_MS;
+    bool emJanelaRecepcao = (cicloAtualMs < DURACAO_JANELA_MS);
+    unsigned long segundosAteJanela = emJanelaRecepcao ? 0 : ((CICLO_RECEPCAO_MS - cicloAtualMs) / 1000);
 
     String json = "{\n";
     json += "  \"esps\": [\n";
-    json += "    {\n";
-    json += "      \"id\": \"esp-1\",\n";
-    json += "      \"num\": 1,\n";
-    json += "      \"name\": \"ESP 1 (Solo Setor A)\",\n";
-    json += "      \"connectivity\": \"ONLINE\",\n";
-    json += "      \"mode\": \"DEEP SLEEP\",\n";
-    json += "      \"lastUpdate\": \"Agora\",\n";
-    json += "      \"nextUpdate\": \"Em 60 min\",\n";
-    json += "      \"sensorValue\": \"" + String(umidadeSoloSimulada, 1) + "% (Umidade Solo)\",\n";
-    json += "      \"interval\": \"60 min\",\n";
-    json += "      \"unit\": \"% Umidade\",\n";
-    json += "      \"batteryPct\": 94,\n";
-    json += "      \"powerSource\": \"BATTERY\",\n";
-    json += "      \"batteryCapacityMah\": 2500,\n";
-    json += "      \"uptimeHours\": 320\n";
-    json += "    },\n";
-    json += "    {\n";
-    json += "      \"id\": \"esp-2\",\n";
-    json += "      \"num\": 2,\n";
-    json += "      \"name\": \"ESP 2 (Temp. Estufa)\",\n";
-    json += "      \"connectivity\": \"DORMINDO\",\n";
-    json += "      \"mode\": \"LIGHT SLEEP\",\n";
-    json += "      \"lastUpdate\": \"Ha 10 min\",\n";
-    json += "      \"nextUpdate\": \"Em 20 min\",\n";
-    json += "      \"sensorValue\": \"24.8 °C\",\n";
-    json += "      \"interval\": \"30 min\",\n";
-    json += "      \"unit\": \"°C\",\n";
-    json += "      \"batteryPct\": 88,\n";
-    json += "      \"powerSource\": \"BATTERY\",\n";
-    json += "      \"batteryCapacityMah\": 2500,\n";
-    json += "      \"uptimeHours\": 195\n";
-    json += "    },\n";
-    json += "    {\n";
-    json += "      \"id\": \"esp-3\",\n";
-    json += "      \"num\": 3,\n";
-    json += "      \"name\": \"ESP 3 (Chuva MH-RD)\",\n";
-    json += "      \"connectivity\": \"ONLINE\",\n";
-    json += "      \"mode\": \"ONLINE\",\n";
-    json += "      \"lastUpdate\": \"Agora\",\n";
-    json += "      \"nextUpdate\": \"Em 1 min\",\n";
-    json += "      \"sensorValue\": \"Seco (MH-RD)\",\n";
-    json += "      \"interval\": \"1 min\",\n";
-    json += "      \"unit\": \"Chuva\",\n";
-    json += "      \"batteryPct\": 100,\n";
-    json += "      \"powerSource\": \"DC\",\n";
-    json += "      \"batteryCapacityMah\": null,\n";
-    json += "      \"uptimeHours\": 65\n";
-    json += "    }\n";
+
+    size_t count = deviceManager.getDeviceCount();
+    for (size_t i = 0; i < count; i++) {
+        const Device* dev = deviceManager.getDeviceByIndex(i);
+        if (!dev) continue;
+
+        json += "    {\n";
+        json += "      \"id\": \"" + dev->id + "\",\n";
+        json += "      \"num\": " + String(i + 1) + ",\n";
+        json += "      \"name\": \"" + dev->name + "\",\n";
+        json += "      \"connectivity\": \"" + String(dev->isOnline ? "ONLINE" : "DORMINDO") + "\",\n";
+        json += "      \"mode\": \"" + dev->mode + "\",\n";
+        json += "      \"lastUpdate\": \"Agora\",\n";
+        json += "      \"nextUpdate\": \"Em " + dev->interval + "\",\n";
+        json += "      \"sensorValue\": \"" + dev->sensorValue + "\",\n";
+        json += "      \"interval\": \"" + dev->interval + "\",\n";
+        json += "      \"unit\": \"" + dev->unit + "\",\n";
+        json += "      \"batteryPct\": " + String(dev->batteryPct) + ",\n";
+        json += "      \"powerSource\": \"" + dev->powerSource + "\",\n";
+        json += "      \"batteryCapacityMah\": " + String(dev->batteryCapacityMah) + ",\n";
+        json += "      \"uptimeHours\": " + String(dev->uptimeHours) + "\n";
+        json += (i < count - 1) ? "    },\n" : "    }\n";
+    }
+
     json += "  ],\n";
     json += "  \"notifications\": [\n";
-    json += "    \"ESP32 Central operando em modo computador/web!\",\n";
-    json += "    \"API REST ativa e aguardando comandos na porta 80.\"\n";
-    json += "  ]\n";
+    if (count == 0) {
+        json += "    \"⚠️ Nenhum ESP periférico conectado ao Central no momento.\",\n";
+        json += "    \"ℹ️ Aguardando comunicação dos microcontroladores periféricos via ESP-NOW...\"\n";
+    } else {
+        json += "    \"ESP32 Central operando em modo computador/web!\",\n";
+        json += "    \"" + String(count) + " dispositivo(s) conectado(s) ao sistema.\"\n";
+    }
+    json += "  ],\n";
+    json += "  \"receptionSchedule\": {\n";
+    json += "    \"inReceptionWindow\": " + String(emJanelaRecepcao ? "true" : "false") + ",\n";
+    json += "    \"nextWindowSeconds\": " + String(segundosAteJanela) + ",\n";
+    json += "    \"windowDurationSeconds\": " + String(DURACAO_JANELA_MS / 1000) + ",\n";
+    json += "    \"cycleIntervalSeconds\": " + String(CICLO_RECEPCAO_MS / 1000) + ",\n";
+    json += "    \"statusMessage\": \"" + String(emJanelaRecepcao ? "Janela de recepção ativa: Central recebendo pacotes ESP-NOW" : "Aguardando próxima janela agendada") + "\"\n";
+    json += "  }\n";
     json += "}";
 
     server.send(200, "application/json", json);
@@ -158,6 +146,21 @@ void setup() {
         Serial.println("********************************************************\n");
     }
 
+    // Inicializa o ESP-NOW para recepção de telemetria dos nós periféricos
+    espNowCentral.iniciar(ESPNOW_WIFI_CHANNEL, false);
+    espNowCentral.definirCallbackRecepcao([](const uint8_t* mac, const PacoteDadosSensores& dados) {
+        char macStr[18];
+        snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X",
+                 mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+        
+        Serial.printf("[CENTRAL] Dados recebidos do nó periférico: %s (%s) | Umidade: %.1f%% | Bateria: %d%%\n", 
+                      dados.nodeName, dados.nodeId, dados.sensorUmidade, dados.bateriaPct);
+        if (!deviceManager.hasDevice(dados.nodeId)) {
+            deviceManager.registerDevice(dados.nodeId, dados.nodeName, macStr);
+        }
+        deviceManager.updateTelemetry(dados.nodeId, dados.sensorUmidade, dados.bateriaPct, dados.modoOperacao, dados.tempoUptimeSegundos);
+    });
+
     // Registra rotas da API REST
     server.on("/api/status", HTTP_OPTIONS, handleOptions);
     server.on("/api/status", HTTP_GET, handleGetStatus);
@@ -178,6 +181,23 @@ void loop() {
 
     // 2. Reconexão automática ao Wi-Fi se houver perda de sinal
     wifiManager.handleReconnect();
+
+    // 3. Janela agendada de recepção de periféricos (Beacon a cada 2s durante a janela)
+    unsigned long cicloAtualMs = millis() % CICLO_RECEPCAO_MS;
+    bool emJanelaRecepcao = (cicloAtualMs < DURACAO_JANELA_MS);
+    if (emJanelaRecepcao) {
+        if (millis() - ultimoBroadcastBeaconMs >= 2000) {
+            ultimoBroadcastBeaconMs = millis();
+            espNowCentral.enviarBroadcastBeacon("CENTRAL_SITIO");
+        }
+    }
+
+    // 4. Manutenção de keep-alive de dispositivos registrados
+    static unsigned long ultimoCheckDevices = 0;
+    if (millis() - ultimoCheckDevices > 15000) {
+        ultimoCheckDevices = millis();
+        deviceManager.checkKeepAlive(180000);
+    }
 
     delay(10);
 }

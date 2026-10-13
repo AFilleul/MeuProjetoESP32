@@ -1,4 +1,4 @@
-﻿#include "DeviceManager.h"
+#include "DeviceManager.h"
 
 DeviceManager::DeviceManager(size_t minHeapSafety)
     : minFreeHeapSafety(minHeapSafety) {}
@@ -127,6 +127,18 @@ void DeviceManager::updateLastSeen(const String& id) {
     if (dev != nullptr) {
         dev->lastSeen = millis();
         dev->isOnline = true;
+    }
+}
+
+void DeviceManager::updateTelemetry(const String& id, float umidade, uint8_t batPct, const String& modo, uint32_t uptimeSec) {
+    Device* dev = getDevice(id);
+    if (dev != nullptr) {
+        dev->lastSeen = millis();
+        dev->isOnline = true;
+        dev->sensorValue = String(umidade, 1) + "% (Umidade Solo)";
+        dev->batteryPct = batPct;
+        if (modo.length() > 0) dev->mode = modo;
+        if (uptimeSec > 0) dev->uptimeHours = uptimeSec / 3600;
     }
 }
 

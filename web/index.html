@@ -24,14 +24,19 @@
         <!-- Barra Superior com Indicador de Conexão com o ESP32 -->
         <header class="top-bar">
             <div class="api-status-badge" id="api-status-badge">
-                <span class="status-dot online"></span>
+                <span class="status-dot online" id="api-status-dot"></span>
                 <span id="api-status-text">ESP32 REST API: Conectado (192.168.4.1)</span>
+            </div>
+            <div class="reception-status-badge" id="reception-status-badge" title="Janela agendada de recepção de dados dos nós periféricos">
+                <span class="reception-icon">📡</span>
+                <span id="reception-text">Recepção em 60s</span>
             </div>
             <div class="queue-status-badge" id="queue-status-badge" title="Alterações pendentes para nós dormindo">
                 <span class="queue-icon">⏳</span>
                 <span id="queue-count-text">0 comandos na fila offline</span>
             </div>
             <div class="top-controls">
+                <button class="top-btn simulation-active" id="btn-toggle-simulation" title="Alternar entre modo simulação e conexão real">🧪 Simulação: ATIVA</button>
                 <button class="top-btn" id="btn-toggle-api-modal" title="Configurar IP do ESP32">⚙️ Conexão API</button>
             </div>
         </header>
@@ -143,6 +148,9 @@
                             <!-- Preenchido dinamicamente via JS -->
                         </tbody>
                     </table>
+                    <div class="empty-state-message" id="empty-status-message-p2">
+                        Nenhum ESP Online ou Configurado
+                    </div>
                 </div>
 
                 <footer class="subpage-footer-legend">
@@ -406,11 +414,28 @@
                     <div class="mode-toggle-group">
                         <label>
                             <input type="checkbox" id="chk-simulator-mode" checked>
-                            Modo Simulador Offline Ativo (Permite testar sem ESP32 físico ligado)
+                            Modo Simulador Offline Ativo (Desmarque para exibir apenas dados do ESP Central real)
                         </label>
                     </div>
 
-                    <div class="pending-queue-summary">
+                    <div class="schedule-config-group" style="margin-top: 15px; padding-top: 12px; border-top: 1px solid #334155;">
+                        <h4 style="color: #38bdf8; margin-bottom: 6px; font-size: 0.95rem;">Janela Agendada de Recepção de Dados (Periféricos):</h4>
+                        <p style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 10px;">
+                            A interface web cessa automaticamente todas as requisições HTTP durante a janela para evitar colisões e perda de pacotes no rádio do ESP Central.
+                        </p>
+                        <div style="display: flex; gap: 12px;">
+                            <div style="flex: 1;">
+                                <label for="input-reception-cycle" style="font-size: 0.8rem;">Ciclo entre janelas (segundos):</label>
+                                <input type="number" id="input-reception-cycle" value="60" min="15" max="600" style="width: 100%; padding: 6px; border-radius: 6px; background: #0f172a; border: 1px solid #334155; color: #fff;">
+                            </div>
+                            <div style="flex: 1;">
+                                <label for="input-reception-duration" style="font-size: 0.8rem;">Duração da janela (segundos):</label>
+                                <input type="number" id="input-reception-duration" value="10" min="3" max="60" style="width: 100%; padding: 6px; border-radius: 6px; background: #0f172a; border: 1px solid #334155; color: #fff;">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="pending-queue-summary" style="margin-top: 15px;">
                         <h4>Fila de Comandos Offline (Deep Sleep):</h4>
                         <div id="modal-queue-items" class="modal-queue-list">
                             <p class="empty-queue-msg">Nenhum comando na fila no momento.</p>

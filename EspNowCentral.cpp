@@ -18,17 +18,19 @@ EspNowCentral::~EspNowCentral() {
     }
 }
 
-bool EspNowCentral::iniciar(uint8_t canal) {
+bool EspNowCentral::iniciar(uint8_t canal, bool configurarWifi) {
     this->canalWifi = canal;
 
-    // 1. Configura rádio Wi-Fi em modo STA sem conectar a roteador
-    WiFi.mode(WIFI_STA);
-    WiFi.disconnect();
+    if (configurarWifi) {
+        // 1. Configura rádio Wi-Fi em modo STA sem conectar a roteador
+        WiFi.mode(WIFI_STA);
+        WiFi.disconnect();
 
-    // Define o canal do Wi-Fi explicitamente
-    esp_wifi_set_promiscuous(true);
-    esp_wifi_set_channel(canalWifi, WIFI_SECOND_CHAN_NONE);
-    esp_wifi_set_promiscuous(false);
+        // Define o canal do Wi-Fi explicitamente
+        esp_wifi_set_promiscuous(true);
+        esp_wifi_set_channel(canalWifi, WIFI_SECOND_CHAN_NONE);
+        esp_wifi_set_promiscuous(false);
+    }
 
     Serial.printf("[ESP-NOW Central] Inicializando no Canal Wi-Fi %d...\n", canalWifi);
     Serial.printf("[ESP-NOW Central] Endereco MAC local: %s\n", WiFi.macAddress().c_str());

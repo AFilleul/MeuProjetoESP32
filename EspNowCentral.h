@@ -16,8 +16,8 @@ public:
     EspNowCentral();
     ~EspNowCentral();
 
-    // Inicializa Wi-Fi em modo Station e configura o ESP-NOW
-    bool iniciar(uint8_t canal = ESPNOW_WIFI_CHANNEL);
+    // Inicializa Wi-Fi e configura o ESP-NOW (permite usar Wi-Fi pré-existente)
+    bool iniciar(uint8_t canal = ESPNOW_WIFI_CHANNEL, bool configurarWifi = true);
 
     // Envia um pacote de Broadcast (FF:FF:FF:FF:FF:FF) anunciando o Central
     bool enviarBroadcastBeacon(const char* identificador = "CENTRAL_SITIO");

@@ -7,50 +7,8 @@
 // 1. ESTADO GLOBAL DA APLICAÇÃO
 // ============================================================================
 
-const AppState = {
-    currentScreen: 'main-menu', // 'main-menu', 'status-p1', 'status-p2', 'config-list', 'esp-options', 'virtual-keyboard', 'mode-selector', 'power-selector'
-    screenHistory: [],
-    focusIndex: 0,
-    selectedEspId: null,
-
-    // Paginação Vertical de Linhas (Nós ESP32) nas telas de Status
-    statusRowPage: 0,
-    statusRowsPerPage: 5,
-    
-    // Configurações da API REST do ESP32
-    api: {
-        baseUrl: 'http://192.168.4.1',
-        pollingInterval: 4000,
-        simulatorMode: true,
-        isOnline: true,
-        pollingTimer: null
-    },
-
-    // Fundo Dinâmico
-    bgSlideTimer: null,
-    activeBgIndex: 1,
-
-    // Teclado Virtual (Slide 8)
-    vk: {
-        fieldKey: 'name', // 'name', 'interval', 'unit', 'batteryCapacity'
-        fieldTitle: '(NOME SENDO DIGITADO)',
-        text: 'ESP 1',
-        activeRow: 1,
-        activeCol: 0,
-        rows: [
-            ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'],
-            ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
-            ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'Ç'],
-            ['Z', 'X', 'C', 'V', 'B', 'N', 'M', '.', '%', '-'],
-            ['ESPAÇO', 'APAGAR']
-        ]
-    },
-
-    // Fila de Alterações Offline (Deep/Light Sleep)
-    pendingQueue: [],
-
-    // Base de Dados dos Nós ESP32 Conectados com Fontes de Alimentação Diversificadas
-    esps: [
+// Base de Dados de Demonstração (Utilizada exclusivamente no Modo Simulador)
+const MOCK_ESPS = [
         {
             id: 'esp-1',
             num: 1,
@@ -211,13 +169,72 @@ const AppState = {
             powerSource: 'SOLAR', // Painel Solar + Bateria 3000 mAh
             batteryCapacityMah: 3000
         }
-    ],
+];
+
+const MOCK_NOTIFICATIONS = [
+    'Modo Simulação Ativo: exibindo exemplos de sensores agrícolas.',
+    'O ESP 3 está online!',
+    'O ESP 9 está online!'
+];
+
+const AppState = {
+    currentScreen: 'main-menu',
+    screenHistory: [],
+    focusIndex: 0,
+    selectedEspId: null,
+
+    // Paginação Vertical de Linhas (Nós ESP32) nas telas de Status
+    statusRowPage: 0,
+    statusRowsPerPage: 5,
+    
+    // Configurações da API REST do ESP32
+    api: {
+        baseUrl: 'http://192.168.4.1',
+        pollingInterval: 4000,
+        simulatorMode: true,
+        isOnline: true,
+        pollingTimer: null
+    },
+
+    // Janela Agendada de Recepção de Dados dos Periféricos
+    receptionSchedule: {
+        enabled: true,
+        cycleSeconds: 60,
+        windowDurationSeconds: 10,
+        secondsUntilWindow: 60,
+        inReceptionWindow: false,
+        windowSecondsRemaining: 0,
+        timer: null
+    },
+
+    // Fundo Dinâmico
+    bgSlideTimer: null,
+    activeBgIndex: 1,
+
+    // Teclado Virtual (Slide 8)
+    vk: {
+        fieldKey: 'name',
+        fieldTitle: '(NOME SENDO DIGITADO)',
+        text: 'ESP 1',
+        activeRow: 1,
+        activeCol: 0,
+        rows: [
+            ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'],
+            ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
+            ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'Ç'],
+            ['Z', 'X', 'C', 'V', 'B', 'N', 'M', '.', '%', '-'],
+            ['ESPAÇO', 'APAGAR']
+        ]
+    },
+
+    // Fila de Alterações Offline (Deep/Light Sleep)
+    pendingQueue: [],
+
+    // Base de Dados dos Nós ESP32 Conectados
+    esps: JSON.parse(JSON.stringify(MOCK_ESPS)),
 
     // Notificações
-    notifications: [
-        'O ESP 3 está online!',
-        'O ESP 9 está online!'
-    ]
+    notifications: [...MOCK_NOTIFICATIONS]
 };
 
 // ============================================================================
@@ -251,9 +268,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     try {
         startPollingLoop();
+        initReceptionSchedule();
         simulateBackgroundEvents();
     } catch (e) {
-        console.error('[Init] Erro na simulação de eventos:', e);
+        console.error('[Init] Erro na simulação de eventos ou agendamento:', e);
     }
 });
 
@@ -503,7 +521,10 @@ function updateHeaderBadges() {
     const statusDot = document.querySelector('.status-dot');
 
     if (apiText && statusDot) {
-        if (AppState.api.simulatorMode) {
+        if (AppState.receptionSchedule && AppState.receptionSchedule.inReceptionWindow) {
+            apiText.textContent = '📡 Conexão Web Pausada (ESP Central recebendo periféricos)';
+            statusDot.className = 'status-dot paused';
+        } else if (AppState.api.simulatorMode) {
             apiText.textContent = 'API Simulada: Modo Autônomo Ativo';
             statusDot.className = 'status-dot online';
         } else if (AppState.api.isOnline) {
@@ -513,6 +534,37 @@ function updateHeaderBadges() {
             apiText.textContent = `ESP32 REST: Desconectado (${AppState.api.baseUrl})`;
             statusDot.className = 'status-dot offline';
         }
+    }
+
+    // Atualiza botão de simulação na barra superior
+    const btnSim = document.getElementById('btn-toggle-simulation');
+    if (btnSim) {
+        if (AppState.api.simulatorMode) {
+            btnSim.className = 'top-btn simulation-active';
+            btnSim.textContent = '🧪 Simulação: ATIVA';
+        } else {
+            btnSim.className = 'top-btn simulation-inactive';
+            btnSim.textContent = '📡 Simulação: DESATIVADA (ESP Real)';
+        }
+    }
+
+    updateReceptionBadge();
+}
+
+function updateReceptionBadge() {
+    const badge = document.getElementById('reception-status-badge');
+    const textEl = document.getElementById('reception-text');
+    if (!badge || !textEl) return;
+
+    const sched = AppState.receptionSchedule;
+    if (sched.inReceptionWindow) {
+        badge.classList.add('in-reception');
+        textEl.textContent = `📡 RECEBENDO DADOS: ${sched.windowSecondsRemaining}s (Pausado)`;
+        badge.title = 'ESP Central em janela de recepção de dados dos periféricos. Conexão web pausada para priorizar o rádio.';
+    } else {
+        badge.classList.remove('in-reception');
+        textEl.textContent = `Recepção em ${sched.secondsUntilWindow}s`;
+        badge.title = `Próxima janela agendada de recepção de periféricos em ${sched.secondsUntilWindow}s (duração: ${sched.windowDurationSeconds}s)`;
     }
 }
 
@@ -548,14 +600,52 @@ function renderMainMenu() {
 
     // Notificações
     const notifContainer = document.getElementById('notifications-content');
+    const notifBox = document.getElementById('notifications-box');
+    
+    // Evidencia se não houver nenhum ESP conectado
+    const hasAnyConnected = AppState.esps.some(e => e.connectivity === 'ONLINE' || e.connectivity === 'DORMINDO');
+    const isRealModeEmpty = !AppState.api.simulatorMode && (!hasAnyConnected || AppState.esps.length === 0);
+
+    if (notifBox) {
+        if (isRealModeEmpty) {
+            notifBox.classList.add('empty-warning');
+        } else {
+            notifBox.classList.remove('empty-warning');
+        }
+    }
+
     if (notifContainer) {
         notifContainer.innerHTML = '';
-        if (AppState.notifications.length === 0) {
+        if (isRealModeEmpty) {
+            const pWarn = document.createElement('p');
+            pWarn.className = 'notif-item warning';
+            pWarn.innerHTML = '⚠️ <strong>Nenhum ESP conectado</strong> ao sistema no momento.';
+            notifContainer.appendChild(pWarn);
+
+            const pInfo = document.createElement('p');
+            pInfo.className = 'notif-item info';
+            pInfo.textContent = 'ℹ️ Aguardando dados dos microcontroladores periféricos via ESP-NOW...';
+            notifContainer.appendChild(pInfo);
+
+            AppState.notifications.forEach(msg => {
+                if (!msg.includes('Nenhum ESP')) {
+                    const p = document.createElement('p');
+                    p.className = 'notif-item';
+                    p.textContent = msg;
+                    notifContainer.appendChild(p);
+                }
+            });
+        } else if (AppState.notifications.length === 0) {
             notifContainer.innerHTML = '<p class="notif-item empty">Nenhuma notificação</p>';
         } else {
             AppState.notifications.forEach(msg => {
                 const p = document.createElement('p');
                 p.className = 'notif-item';
+                if (msg.includes('⚠️') || msg.includes('Atenção') || msg.includes('Nenhum ESP')) {
+                    p.className = 'notif-item warning';
+                } else if (msg.includes('ℹ️') || msg.includes('📡')) {
+                    p.className = 'notif-item info';
+                }
                 p.textContent = msg;
                 notifContainer.appendChild(p);
             });
@@ -655,9 +745,26 @@ function renderStatusP1() {
 function renderStatusP2() {
     const tbody = document.getElementById('tbody-status-p2');
     const rowIndicatorP2 = document.getElementById('status-row-indicator-p2');
-    if (!tbody) return;
+    const table = document.getElementById('table-status-p2');
+    const emptyMsg = document.getElementById('empty-status-message-p2');
+    if (!tbody || !table) return;
 
     tbody.innerHTML = '';
+
+    const hasOnlineOrConfigured = AppState.esps.some(e => e.connectivity === 'ONLINE' || e.connectivity === 'DORMINDO');
+
+    if (!hasOnlineOrConfigured || AppState.esps.length === 0) {
+        table.style.display = 'none';
+        if (emptyMsg) {
+            emptyMsg.classList.add('visible');
+            emptyMsg.textContent = 'Nenhum ESP Online ou Configurado';
+        }
+        if (rowIndicatorP2) rowIndicatorP2.textContent = 'Linhas: 0/0';
+        return;
+    }
+
+    table.style.display = 'table';
+    if (emptyMsg) emptyMsg.classList.remove('visible');
 
     const perPage = AppState.statusRowsPerPage || 5;
     const totalRowPages = Math.max(1, Math.ceil(AppState.esps.length / perPage));
@@ -1275,10 +1382,50 @@ function processPendingQueueForEsp(esp) {
 }
 
 // ============================================================================
-// 9. COMUNICAÇÃO ASSÍNCRONA COM ESP32 REST API (FETCH API)
+// 9. COMUNICAÇÃO ASSÍNCRONA COM ESP32 REST API (FETCH API) E MÓDULO DE SIMULAÇÃO
 // ============================================================================
 
+function setSimulatorMode(enabled) {
+    if (AppState.api.simulatorMode === enabled) return;
+
+    AppState.api.simulatorMode = enabled;
+
+    const simChk = document.getElementById('chk-simulator-mode');
+    if (simChk) simChk.checked = enabled;
+
+    if (enabled) {
+        // Restaurar dados fictícios de demonstração
+        AppState.esps = JSON.parse(JSON.stringify(MOCK_ESPS));
+        AppState.notifications = [
+            'Modo Simulação Ativo: exibindo exemplos de sensores agrícolas.',
+            'O ESP 3 está online!'
+        ];
+        showToastNotification('🧪 Modo Simulação Ativado (dados de exemplo restaurados)');
+        updateUI();
+    } else {
+        // SAIR DO MÓDULO SIMULAÇÃO:
+        // DEIXA DE MOSTRAR EXEMPLOS E PASSA A MOSTRAR APENAS DADOS ENVIADOS PELO ESP CENTRAL!
+        AppState.esps = []; // LIMPA TOTALMENTE OS DADOS DE EXEMPLO!
+        AppState.notifications = [];
+        AppState.statusRowPage = 0;
+        AppState.focusIndex = 0;
+        
+        showToastNotification('📡 Modo Real Ativo: Buscando dados reais do ESP32 Central...');
+        updateUI();
+        
+        // Dispara requisição ao ESP Central imediatamente
+        fetchStatusFromESP32();
+    }
+}
+
 async function fetchStatusFromESP32() {
+    // NO MOMENTO EM QUE O ESP ESTÁ AGENDADO PARA RECEBER DADOS DOS PERIFÉRICOS,
+    // A CONEXÃO DA INTERFACE COM O ESP CENTRAL CESSA IMEDIATAMENTE!
+    if (AppState.receptionSchedule && AppState.receptionSchedule.inReceptionWindow) {
+        console.log('[Fetch] Ignorado: Conexão web pausada durante janela agendada de recepção de periféricos.');
+        return;
+    }
+
     if (AppState.api.simulatorMode) {
         // No modo simulador, atualiza dados fictícios
         simulateSensorFluctuation();
@@ -1296,41 +1443,79 @@ async function fetchStatusFromESP32() {
             const data = await response.json();
             AppState.api.isOnline = true;
             
-            if (Array.isArray(data.esps)) {
-                // Atualiza ou insere dados recebidos
-                data.esps.forEach(remoteEsp => {
-                    const localEsp = AppState.esps.find(e => e.id === remoteEsp.id);
-                    if (localEsp) {
-                        const wasSleeping = localEsp.connectivity === 'DORMINDO';
-                        Object.assign(localEsp, remoteEsp);
-                        
-                        // Se o ESP acordou, entrega as pendências
-                        if (wasSleeping && localEsp.connectivity === 'ONLINE') {
-                            processPendingQueueForEsp(localEsp);
-                        }
-                    } else {
-                        AppState.esps.push(remoteEsp);
-                    }
-                });
+            // AO SAIR DO MÓDULO SIMULAÇÃO: MOSTRA APENAS DADOS ENVIADOS PELO ESP CENTRAL!
+            const remoteEsps = Array.isArray(data.esps) ? data.esps : [];
+
+            // Se algum nó acordou, entrega as alterações pendentes da fila offline
+            remoteEsps.forEach(remoteEsp => {
+                const localEsp = AppState.esps.find(e => e.id === remoteEsp.id);
+                if (localEsp && localEsp.connectivity === 'DORMINDO' && remoteEsp.connectivity === 'ONLINE') {
+                    processPendingQueueForEsp(remoteEsp);
+                }
+            });
+
+            // Apenas dados reais enviados pelo Central são exibidos
+            AppState.esps = remoteEsps;
+
+            // Sincroniza agendamento da janela de recepção se informado pelo ESP Central
+            if (data.receptionSchedule) {
+                if (typeof data.receptionSchedule.cycleIntervalSeconds === 'number') {
+                    AppState.receptionSchedule.cycleSeconds = data.receptionSchedule.cycleIntervalSeconds;
+                }
+                if (typeof data.receptionSchedule.windowDurationSeconds === 'number') {
+                    AppState.receptionSchedule.windowDurationSeconds = data.receptionSchedule.windowDurationSeconds;
+                }
+                if (typeof data.receptionSchedule.nextWindowSeconds === 'number' && !AppState.receptionSchedule.inReceptionWindow) {
+                    AppState.receptionSchedule.secondsUntilWindow = data.receptionSchedule.nextWindowSeconds;
+                }
             }
 
-            if (Array.isArray(data.notifications)) {
+            // NOTIFICAÇÕES: caso não haja nenhum ESP conectado, evidencia nas notificações!
+            if (AppState.esps.length === 0) {
+                AppState.notifications = [
+                    "⚠️ Nenhum ESP conectado ao sistema no momento.",
+                    "ℹ️ Aguardando dados dos microcontroladores periféricos via ESP-NOW..."
+                ];
+                if (Array.isArray(data.notifications)) {
+                    data.notifications.forEach(n => {
+                        if (!AppState.notifications.includes(n)) AppState.notifications.push(n);
+                    });
+                }
+            } else if (Array.isArray(data.notifications)) {
                 AppState.notifications = data.notifications;
             }
 
             updateUI();
         } else {
             AppState.api.isOnline = false;
+            AppState.esps = [];
+            AppState.notifications = [
+                `⚠️ Erro HTTP ${response.status} ao conectar ao ESP Central.`,
+                "⚠️ Nenhum ESP conectado ou acessível no momento."
+            ];
+            updateUI();
         }
     } catch (err) {
         console.warn('[Fetch] Falha na comunicação com o ESP32 REST server:', err.message);
         AppState.api.isOnline = false;
+        AppState.esps = [];
+        AppState.notifications = [
+            `⚠️ Falha ao conectar ao ESP Central (${AppState.api.baseUrl}).`,
+            "⚠️ Nenhum ESP conectado ou acessível no momento."
+        ];
         updateUI();
     }
 }
 
 async function sendConfigToRemoteAPI(espId, field, value) {
     if (AppState.api.simulatorMode) return;
+
+    // Se a janela de recepção estiver ativa, enfileira para não interferir no rádio
+    if (AppState.receptionSchedule && AppState.receptionSchedule.inReceptionWindow) {
+        const esp = AppState.esps.find(e => e.id === espId) || { name: espId };
+        showToastNotification('📡 ESP Central ocupado recebendo periféricos. Comando mantido na fila offline!');
+        return;
+    }
 
     try {
         await fetch(`${AppState.api.baseUrl}/api/config`, {
@@ -1343,9 +1528,97 @@ async function sendConfigToRemoteAPI(espId, field, value) {
     }
 }
 
+function stopPollingLoop() {
+    if (AppState.api.pollingTimer) {
+        clearInterval(AppState.api.pollingTimer);
+        AppState.api.pollingTimer = null;
+    }
+}
+
 function startPollingLoop() {
-    if (AppState.api.pollingTimer) clearInterval(AppState.api.pollingTimer);
+    stopPollingLoop();
+    if (AppState.receptionSchedule && AppState.receptionSchedule.inReceptionWindow) {
+        console.log('[Polling] Conexão pausada: Janela de recepção de periféricos ativa.');
+        return;
+    }
     AppState.api.pollingTimer = setInterval(fetchStatusFromESP32, AppState.api.pollingInterval);
+}
+
+// ----------------------------------------------------------------------------
+// AGENDAMENTO DA JANELA DE RECEPÇÃO DE DADOS DOS PERIFÉRICOS (ESP-NOW)
+// ----------------------------------------------------------------------------
+
+function initReceptionSchedule() {
+    if (AppState.receptionSchedule.timer) {
+        clearInterval(AppState.receptionSchedule.timer);
+    }
+    AppState.receptionSchedule.timer = setInterval(tickReceptionSchedule, 1000);
+}
+
+function tickReceptionSchedule() {
+    const sched = AppState.receptionSchedule;
+    if (!sched.enabled) return;
+
+    if (!sched.inReceptionWindow) {
+        if (sched.secondsUntilWindow > 0) {
+            sched.secondsUntilWindow--;
+        }
+        updateReceptionBadge();
+
+        if (sched.secondsUntilWindow <= 0) {
+            enterReceptionWindow();
+        }
+    } else {
+        if (sched.windowSecondsRemaining > 0) {
+            sched.windowSecondsRemaining--;
+        }
+        updateReceptionBadge();
+
+        if (sched.windowSecondsRemaining <= 0) {
+            exitReceptionWindow();
+        }
+    }
+}
+
+function enterReceptionWindow() {
+    const sched = AppState.receptionSchedule;
+    sched.inReceptionWindow = true;
+    sched.windowSecondsRemaining = sched.windowDurationSeconds;
+
+    // 1. CESSA A CONEXÃO DA INTERFACE COM O ESP CENTRAL NO MOMENTO AGENDADO
+    stopPollingLoop();
+
+    // 2. Notificação e alerta destacado
+    const msg = "📡 Janela agendada de recepção ativa! Conexão web pausada temporariamente para que o ESP Central receba os periféricos sem interferência no rádio Wi-Fi.";
+    if (!AppState.notifications.includes(msg)) {
+        AppState.notifications.unshift(msg);
+        if (AppState.notifications.length > 5) AppState.notifications.pop();
+    }
+
+    showToastNotification(`📡 Conexão web pausada: ESP Central recebendo dados dos periféricos (${sched.windowDurationSeconds}s)...`);
+    updateHeaderBadges();
+    updateUI();
+}
+
+function exitReceptionWindow() {
+    const sched = AppState.receptionSchedule;
+    sched.inReceptionWindow = false;
+    sched.secondsUntilWindow = sched.cycleSeconds;
+
+    // 1. REESTABELECE A CONEXÃO DA INTERFACE COM O ESP CENTRAL
+    startPollingLoop();
+
+    // 2. Busca imediatamente os novos dados enviados pelos periféricos
+    fetchStatusFromESP32();
+
+    // 3. Notificação
+    const msg = "⚡ Janela de recepção concluída! Conexão web restabelecida e dados atualizados do ESP Central.";
+    AppState.notifications.unshift(msg);
+    if (AppState.notifications.length > 5) AppState.notifications.pop();
+
+    showToastNotification("⚡ Conexão restabelecida! Dados atualizados recebidos do ESP Central.");
+    updateHeaderBadges();
+    updateUI();
 }
 
 // Simulação dinâmica e autônoma de nós agrícolas (permite testar tudo sem ESP físico)
@@ -1366,6 +1639,8 @@ function simulateSensorFluctuation() {
 function simulateBackgroundEvents() {
     // Simula ciclo periódico de despertar de nós para demonstrar a fila offline
     setInterval(() => {
+        if (!AppState.api.simulatorMode) return; // Se saiu da simulação, não gera eventos fictícios
+
         const sleepingEsps = AppState.esps.filter(e => e.connectivity === 'DORMINDO');
         if (sleepingEsps.length > 0 && Math.random() > 0.4) {
             const wokeEsp = sleepingEsps[Math.floor(Math.random() * sleepingEsps.length)];
@@ -1650,6 +1925,15 @@ function setupEventListeners() {
         });
     }
 
+    // Botão de alternar modo simulação na barra superior
+    const btnSim = document.getElementById('btn-toggle-simulation');
+    if (btnSim) {
+        btnSim.addEventListener('click', (e) => {
+            e.preventDefault();
+            setSimulatorMode(!AppState.api.simulatorMode);
+        });
+    }
+
     const btnModalSave = document.getElementById('btn-modal-save');
     if (btnModalSave) {
         btnModalSave.addEventListener('click', (e) => {
@@ -1657,10 +1941,15 @@ function setupEventListeners() {
             const ipInput = document.getElementById('input-esp-ip');
             const intervalInput = document.getElementById('input-sync-interval');
             const simChk = document.getElementById('chk-simulator-mode');
+            const cycleInput = document.getElementById('input-reception-cycle');
+            const durationInput = document.getElementById('input-reception-duration');
 
             if (ipInput) AppState.api.baseUrl = ipInput.value.trim();
             if (intervalInput) AppState.api.pollingInterval = parseInt(intervalInput.value, 10);
-            if (simChk) AppState.api.simulatorMode = simChk.checked;
+            if (cycleInput) AppState.receptionSchedule.cycleSeconds = parseInt(cycleInput.value, 10) || 60;
+            if (durationInput) AppState.receptionSchedule.windowDurationSeconds = parseInt(durationInput.value, 10) || 10;
+
+            if (simChk) setSimulatorMode(simChk.checked);
 
             startPollingLoop();
             if (modal) modal.classList.remove('open');
@@ -1846,6 +2135,12 @@ function openApiModal() {
 
     const simChk = document.getElementById('chk-simulator-mode');
     if (simChk) simChk.checked = AppState.api.simulatorMode;
+
+    const cycleInput = document.getElementById('input-reception-cycle');
+    if (cycleInput) cycleInput.value = AppState.receptionSchedule.cycleSeconds;
+
+    const durationInput = document.getElementById('input-reception-duration');
+    if (durationInput) durationInput.value = AppState.receptionSchedule.windowDurationSeconds;
 
     // Renderiza lista da fila offline no modal
     const queueListEl = document.getElementById('modal-queue-items');

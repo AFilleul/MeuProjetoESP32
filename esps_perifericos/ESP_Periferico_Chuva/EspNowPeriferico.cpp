@@ -76,7 +76,11 @@ bool EspNowPeriferico::iniciar(uint8_t canal) {
     esp_now_register_recv_cb(reinterpret_cast<esp_now_recv_cb_t>(EspNowPeriferico::onDataReceive));
     #endif
 
+    #if defined(ESP_IDF_VERSION_MAJOR) && (ESP_IDF_VERSION_MAJOR >= 5)
     esp_now_register_send_cb(EspNowPeriferico::onDataSend);
+    #else
+    esp_now_register_send_cb(reinterpret_cast<esp_now_send_cb_t>(EspNowPeriferico::onDataSend));
+    #endif
 
     return true;
 }
@@ -291,6 +295,15 @@ void EspNowPeriferico::onDataReceive(const uint8_t* mac_addr, const uint8_t* dat
     }
 }
 
+#if defined(ESP_IDF_VERSION_MAJOR) && (ESP_IDF_VERSION_MAJOR >= 5)
+void EspNowPeriferico::onDataSend(const wifi_tx_info_t* tx_info, esp_now_send_status_t status) {
+    if (status == ESP_NOW_SEND_SUCCESS) {
+        Serial.println("[ESP-NOW Periferico] ACK de envio confirmado com sucesso.");
+    } else {
+        Serial.println("[ESP-NOW Periferico] Alerta: Envio falhou.");
+    }
+}
+#else
 void EspNowPeriferico::onDataSend(const uint8_t* mac_addr, esp_now_send_status_t status) {
     if (status == ESP_NOW_SEND_SUCCESS) {
         Serial.println("[ESP-NOW Periferico] ACK de envio confirmado com sucesso.");
@@ -298,3 +311,4 @@ void EspNowPeriferico::onDataSend(const uint8_t* mac_addr, esp_now_send_status_t
         Serial.println("[ESP-NOW Periferico] Alerta: Envio falhou.");
     }
 }
+#endif

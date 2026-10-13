@@ -7,7 +7,7 @@
 
 // Identificação única deste nó na rede do sítio
 #define NODE_ID              "esp-2"
-#define NODE_NAME            "ESP 2 (Sensor de Umidade)"
+#define NODE_NAME            "Sensor de Solo 01"
 #define SENSOR_TYPE          "Umidade do Solo"
 #define SENSOR_UNIT          "% Umidade"
 

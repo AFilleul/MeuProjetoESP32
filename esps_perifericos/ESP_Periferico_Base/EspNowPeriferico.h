@@ -69,11 +69,11 @@ private:
     // Callbacks C nativos do ESP-NOW
     #if defined(ESP_IDF_VERSION_MAJOR) && (ESP_IDF_VERSION_MAJOR >= 5)
     static void onDataReceive(const esp_now_recv_info_t* recvInfo, const uint8_t* data, int dataLen);
+    static void onDataSend(const wifi_tx_info_t* tx_info, esp_now_send_status_t status);
     #else
     static void onDataReceive(const uint8_t* mac_addr, const uint8_t* data, int dataLen);
-    #endif
-
     static void onDataSend(const uint8_t* mac_addr, esp_now_send_status_t status);
+    #endif
 
     static EspNowPeriferico* instancia;
 };

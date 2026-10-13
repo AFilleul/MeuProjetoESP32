@@ -35,7 +35,7 @@ struct PacoteDadosSensores {
     uint8_t tipo;                  // MSG_DADOS_SENSORES
     char nodeMac[18];              // MAC em formato texto "XX:XX:XX:XX:XX:XX"
     char nodeId[12];               // Ex: "esp-2", "esp-3"
-    char nodeName[24];             // Ex: "Solo Setor A"
+    char nodeName[32];             // Ex: "Solo Setor A"
     float sensorUmidade;           // Valor de umidade (0.0 a 100.0%)
     float temperatura;             // Opcional (ex: DHT22, ou temperatura interna)
     uint8_t bateriaPct;            // Nível de bateria (0 a 100%)
@@ -56,7 +56,7 @@ struct PacoteConfiguracao {
     char targetNodeId[12];         // "esp-2", ou "*" para todos os nós
     uint16_t novoIntervaloMin;     // Novo intervalo de leitura em minutos (ex: 15, 30, 60)
     char novoModo[16];             // "DEEP_SLEEP", "LIGHT_SLEEP", "ONLINE"
-    char novoNome[24];             // Novo nome amigável do periférico
+    char novoNome[32];             // Novo nome amigável do periférico
     uint32_t timestampMillis;      // Timestamp do envio
 };
 #pragma pack(pop)

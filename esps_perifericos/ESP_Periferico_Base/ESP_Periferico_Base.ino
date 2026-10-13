@@ -12,7 +12,7 @@ RTC_DATA_ATTR uint32_t bootCount = 0;
 RTC_DATA_ATTR uint32_t tempoUptimeAcumuladoSegundos = 0;
 RTC_DATA_ATTR uint16_t rtcIntervaloMin = READ_INTERVAL_MIN;
 RTC_DATA_ATTR char rtcModoOperacao[16] = OPERATING_MODE;
-RTC_DATA_ATTR char rtcNodeName[24] = NODE_NAME;
+RTC_DATA_ATTR char rtcNodeName[32] = NODE_NAME;
 
 // ============================================================================
 // LEITURA DOS SENSORES

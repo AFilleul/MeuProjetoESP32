@@ -48,7 +48,11 @@ bool EspNowCentral::iniciar(uint8_t canal, bool configurarWifi) {
     esp_now_register_recv_cb(reinterpret_cast<esp_now_recv_cb_t>(EspNowCentral::onDataReceive));
     #endif
 
+    #if defined(ESP_IDF_VERSION_MAJOR) && (ESP_IDF_VERSION_MAJOR >= 5)
     esp_now_register_send_cb(EspNowCentral::onDataSend);
+    #else
+    esp_now_register_send_cb(reinterpret_cast<esp_now_send_cb_t>(EspNowCentral::onDataSend));
+    #endif
 
     // 4. Registra o endereço de Broadcast padrão na lista de peers
     if (!registrarPeer(broadcastMac, canalWifi, false)) {
@@ -180,8 +184,16 @@ void EspNowCentral::onDataReceive(const uint8_t* mac_addr, const uint8_t* data, 
     }
 }
 
+#if defined(ESP_IDF_VERSION_MAJOR) && (ESP_IDF_VERSION_MAJOR >= 5)
+void EspNowCentral::onDataSend(const wifi_tx_info_t* tx_info, esp_now_send_status_t status) {
+    if (status != ESP_NOW_SEND_SUCCESS) {
+        Serial.println("[ESP-NOW Central] Alerta: Falha na confirmacao de entrega do pacote.");
+    }
+}
+#else
 void EspNowCentral::onDataSend(const uint8_t* mac_addr, esp_now_send_status_t status) {
     if (status != ESP_NOW_SEND_SUCCESS) {
         Serial.println("[ESP-NOW Central] Alerta: Falha na confirmacao de entrega do pacote.");
     }
 }
+#endif

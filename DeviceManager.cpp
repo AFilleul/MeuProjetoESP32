@@ -9,10 +9,12 @@ bool DeviceManager::registerDevice(const String& id, const String& name, const S
         return false;
     }
 
-    // Se o dispositivo já estiver registrado, apenas atualiza suas informações
+    // Se o dispositivo já estiver registrado, apenas atualiza suas informações sem sobrescrever configurações do usuário
     Device* existing = getDevice(id);
     if (existing != nullptr) {
-        if (name.length() > 0) existing->name = name;
+        if (name.length() > 0 && !existing->hasUserName && !existing->hasPendingConfig) {
+            existing->name = name;
+        }
         if (ip.length() > 0) existing->ip = ip;
         if (port > 0) existing->port = port;
         existing->isOnline = true;
@@ -131,11 +133,46 @@ unsigned long DeviceManager::parseIntervalToMs(const String& intervalStr) {
     return (unsigned long)val * 60UL * 1000UL;
 }
 
+String DeviceManager::normalizeModeForEspNow(const String& rawMode) {
+    if (rawMode == "DEEP SLEEP" || rawMode == "DEEP_SLEEP") return "DEEP_SLEEP";
+    if (rawMode == "LIGHT SLEEP" || rawMode == "LIGHT_SLEEP") return "LIGHT_SLEEP";
+    if (rawMode == "ONLINE") return "ONLINE";
+    return rawMode;
+}
+
+String DeviceManager::normalizeModeForDisplay(const String& rawMode) {
+    if (rawMode == "DEEP_SLEEP" || rawMode == "DEEP SLEEP") return "DEEP SLEEP";
+    if (rawMode == "LIGHT_SLEEP" || rawMode == "LIGHT SLEEP") return "LIGHT SLEEP";
+    if (rawMode == "ONLINE" || rawMode == "PAREAMENTO") return "ONLINE";
+    return rawMode;
+}
+
 void DeviceManager::setInterval(const String& id, const String& intervalStr) {
     Device* dev = getDevice(id);
     if (dev != nullptr) {
         dev->interval = intervalStr;
         dev->intervalMs = parseIntervalToMs(intervalStr);
+    }
+}
+
+void DeviceManager::setUnit(const String& id, const String& unitStr) {
+    Device* dev = getDevice(id);
+    if (dev != nullptr && unitStr.length() > 0) {
+        dev->unit = unitStr;
+        dev->hasUserUnit = true;
+    }
+}
+
+void DeviceManager::setPowerConfig(const String& id, const String& powerType, uint32_t capacityMah) {
+    Device* dev = getDevice(id);
+    if (dev != nullptr) {
+        if (powerType.length() > 0) {
+            dev->powerSource = powerType;
+        }
+        if (capacityMah > 0) {
+            dev->batteryCapacityMah = capacityMah;
+        }
+        dev->hasUserPower = true;
     }
 }
 
@@ -148,19 +185,44 @@ void DeviceManager::updateLastSeen(const String& id) {
     }
 }
 
-void DeviceManager::updateTelemetry(const String& id, float umidade, uint8_t batPct, const String& modo, uint32_t uptimeSec) {
+void DeviceManager::updateTelemetry(const String& id, float umidade, uint8_t batPct, const String& modo, uint32_t uptimeSec, const String& reportedName) {
     Device* dev = getDevice(id);
     if (dev != nullptr) {
         dev->lastSeen = millis();
         dev->isOnline = true;
         dev->connectivity = "ONLINE";
-        dev->sensorValue = String(umidade, 1) + "% (Umidade Solo)";
+        dev->sensorValue = String(umidade, 1) + " (" + dev->unit + ")";
         dev->batteryPct = batPct;
-        // Não sobrescreve com o modo antigo do periférico se houver uma configuração pendente aguardando sincronização
-        if (modo.length() > 0 && !dev->hasPendingConfig) {
-            dev->mode = modo;
-        }
         if (uptimeSec > 0) dev->uptimeHours = uptimeSec / 3600;
+
+        // PRIORIDADE DE CONFIGURAÇÃO SOBRE TELEMETRIA:
+        // 1. Se o usuário já configurou um nome para este periférico:
+        //    - NUNCA deixa o nome vindo da telemetria sobrescrever dev->name.
+        //    - Se o periférico reportou um nome diferente do configurado, reativa o envio da configuração!
+        if (dev->hasUserName) {
+            dev->name = dev->targetName;
+            if (reportedName.length() > 0 && reportedName != dev->targetName) {
+                dev->hasPendingConfig = true;
+            }
+        } else if (!dev->hasPendingConfig && reportedName.length() > 0) {
+            dev->name = reportedName;
+        }
+
+        // 2. Se o usuário já configurou um modo de operação para este periférico:
+        //    - NUNCA deixa o modo antigo vindo da telemetria sobrescrever dev->mode.
+        //    - Se o periférico reportou um modo operacional diferente do configurado (ignorando flag transitória de PAREAMENTO),
+        //      reativa o envio da configuração para forçar o periférico a assumir o modo configurado!
+        if (dev->hasUserMode) {
+            dev->mode = normalizeModeForDisplay(dev->targetModeEspNow);
+            if (modo.length() > 0 && modo != "PAREAMENTO") {
+                String reportedNorm = normalizeModeForEspNow(modo);
+                if (reportedNorm != dev->targetModeEspNow) {
+                    dev->hasPendingConfig = true;
+                }
+            }
+        } else if (!dev->hasPendingConfig && modo.length() > 0 && modo != "PAREAMENTO") {
+            dev->mode = normalizeModeForDisplay(modo);
+        }
     }
 }
 
@@ -306,32 +368,50 @@ void DeviceManager::queueConfig(const String& id, uint16_t novoIntervaloMin, con
     if (dev == nullptr) return;
 
     dev->hasPendingConfig = true;
+    dev->lastConfigSendMs = 0; // Força envio imediato no próximo ciclo
     dev->pendingConfig.tipo = MSG_CONFIG_PARAMETROS;
     strncpy(dev->pendingConfig.targetNodeId, id.c_str(), sizeof(dev->pendingConfig.targetNodeId) - 1);
     dev->pendingConfig.targetNodeId[sizeof(dev->pendingConfig.targetNodeId) - 1] = '\0';
     
     if (novoIntervaloMin > 0) {
+        dev->hasUserInterval = true;
+        dev->targetIntervalMin = novoIntervaloMin;
         dev->pendingConfig.novoIntervaloMin = novoIntervaloMin;
         setInterval(id, String(novoIntervaloMin) + " min");
+    } else if (dev->hasUserInterval) {
+        dev->pendingConfig.novoIntervaloMin = dev->targetIntervalMin;
     }
-    if (novoModo.length() > 0) {
-        String modoNorm = novoModo;
-        if (modoNorm == "DEEP SLEEP" || modoNorm == "DEEP_SLEEP") modoNorm = "DEEP_SLEEP";
-        else if (modoNorm == "LIGHT SLEEP" || modoNorm == "LIGHT_SLEEP") modoNorm = "LIGHT_SLEEP";
-        else if (modoNorm == "ONLINE") modoNorm = "ONLINE";
 
-        strncpy(dev->pendingConfig.novoModo, modoNorm.c_str(), sizeof(dev->pendingConfig.novoModo) - 1);
+    if (novoModo.length() > 0) {
+        String modoEspNow = normalizeModeForEspNow(novoModo);
+        String modoDisplay = normalizeModeForDisplay(novoModo);
+
+        dev->hasUserMode = true;
+        dev->targetModeEspNow = modoEspNow;
+        dev->mode = modoDisplay;
+
+        strncpy(dev->pendingConfig.novoModo, modoEspNow.c_str(), sizeof(dev->pendingConfig.novoModo) - 1);
         dev->pendingConfig.novoModo[sizeof(dev->pendingConfig.novoModo) - 1] = '\0';
-        dev->mode = modoNorm;
+    } else if (dev->hasUserMode) {
+        strncpy(dev->pendingConfig.novoModo, dev->targetModeEspNow.c_str(), sizeof(dev->pendingConfig.novoModo) - 1);
+        dev->pendingConfig.novoModo[sizeof(dev->pendingConfig.novoModo) - 1] = '\0';
     }
+
     if (novoNome.length() > 0) {
+        dev->hasUserName = true;
+        dev->targetName = novoNome;
+        dev->name = novoNome;
+
         strncpy(dev->pendingConfig.novoNome, novoNome.c_str(), sizeof(dev->pendingConfig.novoNome) - 1);
         dev->pendingConfig.novoNome[sizeof(dev->pendingConfig.novoNome) - 1] = '\0';
-        dev->name = novoNome;
+    } else if (dev->hasUserName) {
+        strncpy(dev->pendingConfig.novoNome, dev->targetName.c_str(), sizeof(dev->pendingConfig.novoNome) - 1);
+        dev->pendingConfig.novoNome[sizeof(dev->pendingConfig.novoNome) - 1] = '\0';
     }
+
     dev->pendingConfig.timestampMillis = millis();
 
-    Serial.printf("[DeviceManager] Configuracao enfileirada para o periferico '%s' (Intervalo: %d min, Modo: %s, Nome: %s)\n",
+    Serial.printf("[DeviceManager] Configuracao prioritaria registrada para '%s' (Intervalo: %d min, Modo: %s, Nome: %s)\n",
                   id.c_str(), dev->pendingConfig.novoIntervaloMin, dev->pendingConfig.novoModo, dev->pendingConfig.novoNome);
 }
 
@@ -356,8 +436,8 @@ void DeviceManager::clearPendingConfig(const String& id) {
     Device* dev = getDevice(id);
     if (dev != nullptr) {
         dev->hasPendingConfig = false;
-        memset(&dev->pendingConfig, 0, sizeof(dev->pendingConfig));
-        Serial.printf("[DeviceManager] Fila de configuracao limpa para o periferico '%s'.\n", id.c_str());
+        // Mantemos os campos de dev->pendingConfig intactos caso seja necessário reenviar futuramente
+        Serial.printf("[DeviceManager] Sincronizacao confirmada (ACK recebido) para o periferico '%s'.\n", id.c_str());
     }
 }
 

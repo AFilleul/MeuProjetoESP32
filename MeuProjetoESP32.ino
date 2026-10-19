@@ -72,7 +72,7 @@ void handleGetStatus() {
         json += "      \"num\": " + String(i + 1) + ",\n";
         json += "      \"name\": \"" + dev->name + "\",\n";
         json += "      \"connectivity\": \"" + dev->connectivity + "\",\n";
-        json += "      \"mode\": \"" + dev->mode + "\",\n";
+        json += "      \"mode\": \"" + DeviceManager::normalizeModeForDisplay(dev->mode) + "\",\n";
         json += "      \"lastUpdate\": \"" + lastUp + "\",\n";
         json += "      \"nextUpdate\": \"" + nextUp + "\",\n";
         json += "      \"sensorValue\": \"" + dev->sensorValue + "\",\n";
@@ -81,7 +81,8 @@ void handleGetStatus() {
         json += "      \"batteryPct\": " + String(dev->batteryPct) + ",\n";
         json += "      \"powerSource\": \"" + dev->powerSource + "\",\n";
         json += "      \"batteryCapacityMah\": " + String(dev->batteryCapacityMah) + ",\n";
-        json += "      \"uptimeHours\": " + String(dev->uptimeHours) + "\n";
+        json += "      \"uptimeHours\": " + String(dev->uptimeHours) + ",\n";
+        json += "      \"hasPendingConfig\": " + String(dev->hasPendingConfig ? "true" : "false") + "\n";
         json += (i < count - 1) ? "    },\n" : "    }\n";
     }
 
@@ -117,46 +118,38 @@ void handleGetStatus() {
     server.send(200, "application/json", json);
 }
 
+// Função auxiliar para extrair campo JSON simples
+static String extractJsonStringField(const String& body, const char* key) {
+    String searchKey = String("\"") + key + "\":";
+    int pos = body.indexOf(searchKey);
+    if (pos == -1) return "";
+    int startVal = pos + searchKey.length();
+    while (startVal < (int)body.length() && (body[startVal] == ' ' || body[startVal] == ':')) startVal++;
+    if (startVal >= (int)body.length()) return "";
+
+    if (body[startVal] == '\"') {
+        int endVal = body.indexOf("\"", startVal + 1);
+        if (endVal != -1) return body.substring(startVal + 1, endVal);
+    } else if (body[startVal] != '{') {
+        int endVal = startVal;
+        while (endVal < (int)body.length() && body[endVal] != ',' && body[endVal] != '}') endVal++;
+        String val = body.substring(startVal, endVal);
+        val.trim();
+        return val;
+    }
+    return "";
+}
+
 void handlePostConfig() {
     adicionarCORS();
     if (server.hasArg("plain")) {
         String body = server.arg("plain");
-        Serial.println("\n[API REST] Nova configuracao recebida da interface web:");
+        Serial.println("\n[API REST] Nova configuracao prioritaria recebida da interface web:");
         Serial.println(body);
 
-        // Parsing do payload JSON enviado pela interface web: {"espId": "esp-2", "field": "interval", "value": 30}
-        String espId = "";
-        String field = "";
-        String valueStr = "";
-
-        int idPos = body.indexOf("\"espId\":");
-        if (idPos != -1) {
-            int q1 = body.indexOf("\"", idPos + 8);
-            int q2 = body.indexOf("\"", q1 + 1);
-            if (q1 != -1 && q2 != -1) espId = body.substring(q1 + 1, q2);
-        }
-
-        int fieldPos = body.indexOf("\"field\":");
-        if (fieldPos != -1) {
-            int q1 = body.indexOf("\"", fieldPos + 8);
-            int q2 = body.indexOf("\"", q1 + 1);
-            if (q1 != -1 && q2 != -1) field = body.substring(q1 + 1, q2);
-        }
-
-        int valPos = body.indexOf("\"value\":");
-        if (valPos != -1) {
-            int startVal = valPos + 8;
-            while (startVal < body.length() && (body[startVal] == ' ' || body[startVal] == ':')) startVal++;
-            if (body[startVal] == '\"') {
-                int endVal = body.indexOf("\"", startVal + 1);
-                if (endVal != -1) valueStr = body.substring(startVal + 1, endVal);
-            } else {
-                int endVal = startVal;
-                while (endVal < body.length() && body[endVal] != ',' && body[endVal] != '}') endVal++;
-                valueStr = body.substring(startVal, endVal);
-                valueStr.trim();
-            }
-        }
+        String espId = extractJsonStringField(body, "espId");
+        String field = extractJsonStringField(body, "field");
+        String valueStr = extractJsonStringField(body, "value");
 
         if (espId.length() > 0 && field.length() > 0) {
             Device* dev = deviceManager.getDevice(espId);
@@ -165,6 +158,27 @@ void handlePostConfig() {
                 dev = deviceManager.getDevice(espId);
             }
 
+            // Campos gerenciados no Central para exibição e cálculo de autonomia
+            if (field == "unit") {
+                deviceManager.setUnit(espId, valueStr);
+                server.send(200, "application/json", "{\"status\":\"sent\",\"message\":\"Unidade atualizada e fixada no Central\"}");
+                return;
+            } else if (field == "powerSource") {
+                String pType = extractJsonStringField(body, "type");
+                if (pType.length() == 0) pType = valueStr;
+                String capStr = extractJsonStringField(body, "capacity");
+                uint32_t capMah = (uint32_t)capStr.toInt();
+                deviceManager.setPowerConfig(espId, pType, capMah);
+                server.send(200, "application/json", "{\"status\":\"sent\",\"message\":\"Fonte de energia atualizada e fixada no Central\"}");
+                return;
+            } else if (field == "batteryCapacity") {
+                uint32_t capMah = (uint32_t)valueStr.toInt();
+                deviceManager.setPowerConfig(espId, "BATTERY", capMah);
+                server.send(200, "application/json", "{\"status\":\"sent\",\"message\":\"Capacidade de bateria atualizada no Central\"}");
+                return;
+            }
+
+            // Campos sincronizados via rádio ESP-NOW com o periférico (interval, mode, name)
             uint16_t novoIntervalo = 0;
             String novoModo = "";
             String novoNome = "";
@@ -177,7 +191,7 @@ void handlePostConfig() {
                 novoNome = valueStr;
             }
 
-            // Enfileira a configuração no registro do DeviceManager
+            // Registra e bloqueia a configuração com prioridade sobre qualquer telemetria futura
             deviceManager.queueConfig(espId, novoIntervalo, novoModo, novoNome);
 
             // Se o MAC já foi capturado, despacha imediatamente via ESP-NOW
@@ -185,18 +199,19 @@ void handlePostConfig() {
             uint8_t macDest[6];
             if (dev && dev->hasMac) {
                 if (deviceManager.getPendingConfig(espId, cfgEnvio, macDest)) {
-                    Serial.printf("[API REST] Despachando configuração para '%s' via ESP-NOW imediatamente...\n", espId.c_str());
+                    Serial.printf("[API REST] PRIORIDADE: Despachando configuração para '%s' via ESP-NOW imediatamente...\n", espId.c_str());
                     bool enviado = espNowCentral.enviarConfiguracao(macDest, cfgEnvio);
+                    dev->lastConfigSendMs = millis();
                     if (enviado) {
-                        Serial.println("[API REST] Pacote ESP-NOW transmitido via rádio.");
+                        Serial.println("[API REST] Pacote ESP-NOW transmitido via rádio (aguardando ACK do periférico).");
                     }
                     server.send(200, "application/json", "{\"status\":\"sent\",\"message\":\"Configuracao despachada diretamente via ESP-NOW\"}");
                     return;
                 }
             }
 
-            Serial.printf("[API REST] Periférico '%s' aguardando sinal. Mantida na fila do ESP Central para envio quando o nó acordar.\n", espId.c_str());
-            server.send(200, "application/json", "{\"status\":\"queued\",\"message\":\"Configuracao armazenada na fila de sincronizacao\"}");
+            Serial.printf("[API REST] Periférico '%s' em repouso/aguardando sinal. Mantida na fila prioritária do ESP Central.\n", espId.c_str());
+            server.send(200, "application/json", "{\"status\":\"queued\",\"message\":\"Configuracao armazenada na fila prioritaria de sincronizacao\"}");
             return;
         }
 
@@ -213,18 +228,13 @@ void handleDeleteDevice() {
         Serial.println("\n[API REST] Requisicao para apagar periferico:");
         Serial.println(body);
 
-        int idPos = body.indexOf("\"id\":");
-        if (idPos != -1) {
-            int startQuote = body.indexOf("\"", idPos + 5);
-            int endQuote = body.indexOf("\"", startQuote + 1);
-            if (startQuote != -1 && endQuote != -1) {
-                String devId = body.substring(startQuote + 1, endQuote);
-                bool removed = deviceManager.removeDevice(devId);
-                if (removed) {
-                    Serial.printf("[API REST] Periférico '%s' apagado com sucesso!\n", devId.c_str());
-                    server.send(200, "application/json", "{\"status\":\"ok\",\"message\":\"Periferico apagado com sucesso!\"}");
-                    return;
-                }
+        String devId = extractJsonStringField(body, "id");
+        if (devId.length() > 0) {
+            bool removed = deviceManager.removeDevice(devId);
+            if (removed) {
+                Serial.printf("[API REST] Periférico '%s' apagado com sucesso!\n", devId.c_str());
+                server.send(200, "application/json", "{\"status\":\"ok\",\"message\":\"Periferico apagado com sucesso!\"}");
+                return;
             }
         }
         server.send(200, "application/json", "{\"status\":\"ok\",\"message\":\"Comando processado\"}");
@@ -259,9 +269,10 @@ void setup() {
         Serial.println(wifiManager.getLocalIP());
         Serial.println("********************************************************\n");
     } else {
-        // Fallback: se o roteador não responder, cria ponto de acesso próprio
-        Serial.println("\n[Wi-Fi] Roteador nao encontrado. Criando Ponto de Acesso (AP)...");
-        WiFi.softAP("SitioOnline_ESP32", "12345678");
+        // Fallback: se o roteador não responder, cria ponto de acesso próprio em modo AP+STA no canal do ESP-NOW
+        Serial.println("\n[Wi-Fi] Roteador nao encontrado. Criando Ponto de Acesso (AP+STA)...");
+        WiFi.mode(WIFI_AP_STA);
+        WiFi.softAP("SitioOnline_ESP32", "12345678", ESPNOW_WIFI_CHANNEL);
         Serial.println("********************************************************");
         Serial.println("  MODO ACCESS POINT ATIVADO!");
         Serial.println("  Rede Wi-Fi: SitioOnline_ESP32  |  Senha: 12345678");
@@ -270,45 +281,50 @@ void setup() {
         Serial.println("********************************************************\n");
     }
 
-    // Inicializa o ESP-NOW para recepção de telemetria dos nós periféricos
+    // Inicializa o ESP-NOW para recepção de telemetria e envio prioritário de configurações
     espNowCentral.iniciar(ESPNOW_WIFI_CHANNEL, false);
     
-    // Callback 1: Recepção de telemetria dos sensores e despacho imediato de filas pendentes
+    // Callback 1: Recepção de telemetria dos sensores com PRIORIDADE ABSOLUTA para envio de configurações
     espNowCentral.definirCallbackRecepcao([](const uint8_t* mac, const PacoteDadosSensores& dados) {
         char macStr[18];
         snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X",
                  mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
         
-        Serial.printf("\n[CENTRAL] Telemetria recebida do nó: %s (%s) | Umidade: %.1f%% | Bateria: %d%%\n", 
+        Serial.printf("\n[CENTRAL] Telemetria recebida do nó: %s (%s) | Valor: %.1f | Bateria: %d%%\n", 
                       dados.nodeName, dados.nodeId, dados.sensorUmidade, dados.bateriaPct);
         
         if (!deviceManager.hasDevice(dados.nodeId)) {
             deviceManager.registerDevice(dados.nodeId, dados.nodeName, macStr);
         }
         deviceManager.setDeviceMac(dados.nodeId, mac);
-        deviceManager.updateTelemetry(dados.nodeId, dados.sensorUmidade, dados.bateriaPct, dados.modoOperacao, dados.tempoUptimeSegundos);
 
-        // FILA DE SINCRONIZAÇÃO: Se houver alteração pendente enviada pela Interface Web, despacha agora!
+        // Atualiza telemetria protegendo todas as configurações definidas pelo usuário
+        // (e reativa hasPendingConfig automaticamente caso o periférico ainda esteja com configuração antiga!)
+        deviceManager.updateTelemetry(dados.nodeId, dados.sensorUmidade, dados.bateriaPct, dados.modoOperacao, dados.tempoUptimeSegundos, dados.nodeName);
+
+        // PRIORIDADE 1: Se houver configuração pendente ou divergente, despacha IMEDIATAMENTE para o periférico!
         PacoteConfiguracao cfgPendente;
         uint8_t macDest[6];
         if (deviceManager.getPendingConfig(dados.nodeId, cfgPendente, macDest)) {
-            Serial.printf("[CENTRAL] Nó '%s' acordou! Despachando configuração da fila de sincronização via ESP-NOW...\n", dados.nodeId);
+            Serial.printf("[CENTRAL] PRIORIDADE: Despachando configuração para '%s' via ESP-NOW imediatamente...\n", dados.nodeId);
             espNowCentral.enviarConfiguracao(mac, cfgPendente);
+            Device* dev = deviceManager.getDevice(dados.nodeId);
+            if (dev) dev->lastConfigSendMs = millis();
         }
     });
 
     // Callback 2: Confirmação (ACK) de configuração aplicada com sucesso no periférico
     espNowCentral.definirCallbackAckConfig([](const uint8_t* mac, const PacoteAckConfig& ack) {
         Serial.printf("\n[CENTRAL] ACK de configuração confirmado pelo periférico '%s'! Status: %s\n",
-                      ack.nodeId, ack.sucesso ? "SUCESSO" : "ERRO");
+                       ack.nodeId, ack.sucesso ? "SUCESSO" : "ERRO");
         if (ack.sucesso) {
             Device* dev = deviceManager.getDevice(ack.nodeId);
             if (dev) {
-                if (ack.intervaloAplicadoMin > 0) {
+                if (ack.intervaloAplicadoMin > 0 && !dev->hasUserInterval) {
                     deviceManager.setInterval(ack.nodeId, String(ack.intervaloAplicadoMin) + " min");
                 }
-                if (strlen(ack.modoAplicado) > 0) {
-                    dev->mode = ack.modoAplicado;
+                if (strlen(ack.modoAplicado) > 0 && !dev->hasUserMode) {
+                    dev->mode = DeviceManager::normalizeModeForDisplay(ack.modoAplicado);
                 }
             }
             deviceManager.clearPendingConfig(ack.nodeId);
@@ -336,20 +352,35 @@ void loop() {
     // 1. Processa requisicoes HTTP vindas da interface web no computador
     server.handleClient();
 
-    // 2. Reconexão automática ao Wi-Fi se houver perda de sinal
-    wifiManager.handleReconnect();
-
-    // 3. Janela agendada de recepção de periféricos (Beacon a cada 2s durante a janela)
-    unsigned long cicloAtualMs = millis() % CICLO_RECEPCAO_MS;
-    bool emJanelaRecepcao = (cicloAtualMs < DURACAO_JANELA_MS);
-    if (emJanelaRecepcao) {
-        if (millis() - ultimoBroadcastBeaconMs >= 2000) {
-            ultimoBroadcastBeaconMs = millis();
-            espNowCentral.enviarBroadcastBeacon("CENTRAL_SITIO");
+    // 2. PRIORIDADE: Reenvio ativo de configurações pendentes para periféricos que estão acordados/online
+    static unsigned long ultimoRetryConfigMs = 0;
+    if (millis() - ultimoRetryConfigMs >= 250) {
+        ultimoRetryConfigMs = millis();
+        size_t count = deviceManager.getDeviceCount();
+        for (size_t i = 0; i < count; i++) {
+            Device* dev = deviceManager.getDeviceByIndex(i);
+            if (dev && dev->hasPendingConfig && dev->hasMac) {
+                // Se o periférico deu sinal nos últimos 15 segundos (está acordado/escutando)
+                // e já passaram 450ms desde a última tentativa de envio, reenvia o pacote até receber o ACK!
+                if ((millis() - dev->lastSeen < 15000) && (millis() - dev->lastConfigSendMs >= 450)) {
+                    dev->lastConfigSendMs = millis();
+                    Serial.printf("[CENTRAL] Reenviando configuração prioritária para '%s' (aguardando ACK)...\n", dev->id.c_str());
+                    espNowCentral.enviarConfiguracao(dev->macAddr, dev->pendingConfig);
+                }
+            }
         }
     }
 
-    // 4. Manutenção de keep-alive e detecção de periféricos que não enviaram sinal quando deviam
+    // 3. Emissão contínua de Broadcast Beacon (a cada 1.5s) para descoberta rápida de periféricos ao acordarem
+    if (millis() - ultimoBroadcastBeaconMs >= 1500) {
+        ultimoBroadcastBeaconMs = millis();
+        espNowCentral.enviarBroadcastBeacon("CENTRAL_SITIO");
+    }
+
+    // 4. Reconexão automática ao Wi-Fi se houver perda de sinal
+    wifiManager.handleReconnect();
+
+    // 5. Manutenção de keep-alive e detecção de periféricos que não enviaram sinal quando deviam
     static unsigned long ultimoCheckDevices = 0;
     if (millis() - ultimoCheckDevices > 2000) {
         ultimoCheckDevices = millis();

@@ -190,7 +190,20 @@ const AppState = {
     
     // Configurações da API REST do ESP32
     api: {
-        baseUrl: (typeof window !== 'undefined' && window.location && window.location.protocol.startsWith('http') && window.location.hostname !== 'localhost') ? window.location.origin : 'http://192.168.4.1',
+        baseUrl: (() => {
+            try {
+                const saved = localStorage.getItem('sitio_online_api_base_url');
+                if (saved) return saved;
+            } catch (e) {}
+            if (typeof window !== 'undefined' && window.location && window.location.protocol.startsWith('http')) {
+                const host = window.location.hostname;
+                const port = window.location.port;
+                if (host !== 'localhost' && host !== '127.0.0.1' && host !== '[::1]' && !port) {
+                    return window.location.origin;
+                }
+            }
+            return 'http://192.168.4.1';
+        })(),
         pollingInterval: 4000,
         simulatorMode: false,
         isOnline: true,
@@ -1336,28 +1349,83 @@ function saveVirtualKeyboardValue() {
 }
 
 // ============================================================================
-// 8. ARQUITETURA DE FILA OFFLINE (DEEP/LIGHT SLEEP SYNC)
+// 8. ARQUITETURA DE FILA OFFLINE E PRIORIDADE PERMANENTE DE CONFIGURAÇÕES
 // ============================================================================
 
-// Registro de alterações recentes feitas pelo usuário para proteger contra sobrescrita imediata do polling
-const recentLocalEdits = new Map();
+// Mapa persistente de todas as configurações definidas pelo usuário na Interface Web.
+// Dados recebidos pelo polling (/api/status) NUNCA sobrescrevem uma configuração definida pelo usuário.
+const USER_CONFIGS_STORAGE_KEY = 'sitio_online_user_configs';
+const userConfiguredSettings = new Map();
+const unsentConfigQueue = []; // Fila de comandos HTTP pendentes de envio ao ESP Central
 
-function markPendingLocalEdit(espId, field, value) {
-    recentLocalEdits.set(`${espId}:${field}`, {
+(function loadPersistedUserConfigs() {
+    try {
+        const raw = localStorage.getItem(USER_CONFIGS_STORAGE_KEY);
+        if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed && typeof parsed === 'object') {
+                Object.entries(parsed).forEach(([key, entry]) => {
+                    userConfiguredSettings.set(key, entry);
+                });
+            }
+        }
+    } catch (e) {
+        console.warn('[ConfigLock] Não foi possível carregar configurações salvas do localStorage:', e);
+    }
+})();
+
+function persistUserConfigs() {
+    try {
+        const obj = {};
+        userConfiguredSettings.forEach((val, key) => {
+            obj[key] = val;
+        });
+        localStorage.setItem(USER_CONFIGS_STORAGE_KEY, JSON.stringify(obj));
+    } catch (e) {}
+}
+
+function normalizeModeDisplay(mode) {
+    if (!mode) return 'ONLINE';
+    const m = String(mode).toUpperCase().trim();
+    if (m === 'DEEP_SLEEP' || m === 'DEEP SLEEP') return 'DEEP SLEEP';
+    if (m === 'LIGHT_SLEEP' || m === 'LIGHT SLEEP') return 'LIGHT SLEEP';
+    if (m === 'PAREAMENTO' || m === 'ONLINE') return 'ONLINE';
+    return m;
+}
+
+function normalizeModeApi(mode) {
+    const disp = normalizeModeDisplay(mode);
+    if (disp === 'DEEP SLEEP') return 'DEEP_SLEEP';
+    if (disp === 'LIGHT SLEEP') return 'LIGHT_SLEEP';
+    return 'ONLINE';
+}
+
+function markPendingLocalEdit(espId, field, value, apiValue) {
+    userConfiguredSettings.set(`${espId}:${field}`, {
         value: value,
+        apiValue: apiValue !== undefined ? apiValue : value,
         timestamp: Date.now()
     });
+    persistUserConfigs();
 }
 
 function getPendingLocalEdit(espId, field) {
     const key = `${espId}:${field}`;
-    const entry = recentLocalEdits.get(key);
+    const entry = userConfiguredSettings.get(key);
     if (!entry) return null;
-    if (Date.now() - entry.timestamp > 25000) { // Protege por 25 segundos
-        recentLocalEdits.delete(key);
-        return null;
-    }
     return entry.value;
+}
+
+function getPendingLocalEditEntry(espId, field) {
+    return userConfiguredSettings.get(`${espId}:${field}`) || null;
+}
+
+function clearUserConfigsForEsp(espId) {
+    const prefix = `${espId}:`;
+    Array.from(userConfiguredSettings.keys()).forEach(k => {
+        if (k.startsWith(prefix)) userConfiguredSettings.delete(k);
+    });
+    persistUserConfigs();
 }
 
 function saveEspSetting(field, value) {
@@ -1366,20 +1434,20 @@ function saveEspSetting(field, value) {
 
     let apiValue = value;
     if (field === 'mode') {
-        if (value === 'DEEP SLEEP' || value === 'DEEP_SLEEP') apiValue = 'DEEP_SLEEP';
-        else if (value === 'LIGHT SLEEP' || value === 'LIGHT_SLEEP') apiValue = 'LIGHT_SLEEP';
-        else if (value === 'ONLINE') apiValue = 'ONLINE';
+        apiValue = normalizeModeApi(value);
     } else if (field === 'interval') {
         apiValue = parseInt(String(value).replace(/\D/g, ''), 10) || 5;
+    } else if (field === 'batteryCapacity') {
+        apiValue = Math.max(100, parseInt(String(value).replace(/\D/g, ''), 10) || 2500);
     }
 
     // 1. Aplica SEMPRE imediatamente no objeto local da interface para resposta instantânea
     applySettingDirectly(esp, field, value);
 
-    // 2. Protege o valor editado no cache local (impede que o polling subsequente reverta antes da sincronização)
-    markPendingLocalEdit(esp.id, field, value);
+    // 2. Registra permanentemente a configuração do usuário (nunca expira nem é sobrescrita pelo polling)
+    markPendingLocalEdit(esp.id, field, value, apiValue);
 
-    // 3. Mantém registro na fila visual de pendências
+    // 3. Mantém registro na fila visual de pendências até o periférico confirmar recebimento
     let displayValue = typeof value === 'object' ? value.label : value;
     const pendingItem = {
         id: Date.now(),
@@ -1387,6 +1455,7 @@ function saveEspSetting(field, value) {
         espName: esp.name,
         field: field,
         value: value,
+        apiValue: apiValue,
         displayValue: displayValue,
         timestamp: new Date().toLocaleTimeString('pt-BR')
     };
@@ -1397,12 +1466,12 @@ function saveEspSetting(field, value) {
     const isSleeping = esp.connectivity === 'DORMINDO';
     const isOffline = esp.connectivity === 'OFFLINE';
     if (isSleeping || isOffline) {
-        showToastNotification(`⏳ Configuração gravada no Central! O ${esp.name} está em repouso e receberá assim que acordar.`);
+        showToastNotification(`⏳ Configuração gravada com prioridade! O ${esp.name} receberá assim que acordar.`);
     } else {
-        showToastNotification(`✓ Configuração enviada para ${esp.name}!`);
+        showToastNotification(`✓ Configuração enviada com prioridade para ${esp.name}!`);
     }
 
-    // 5. Envia SEMPRE para a API REST do ESP Central (que cuida do despacho imediato ou fila ESP-NOW)
+    // 5. Envia IMEDIATAMENTE para a API REST do ESP Central (prioridade máxima sobre telemetria/recepção)
     sendConfigToRemoteAPI(esp.id, field, apiValue);
 
     updateUI();
@@ -1410,40 +1479,64 @@ function saveEspSetting(field, value) {
 
 function applySettingDirectly(esp, field, value) {
     if (field === 'name') esp.name = value;
-    else if (field === 'interval') esp.interval = `${String(value).replace(/\D/g, '')} min`;
+    else if (field === 'interval') esp.interval = `${String(value).replace(/\D/g, '') || 5} min`;
     else if (field === 'unit') esp.unit = value;
     else if (field === 'mode') {
-        if (value === 'DEEP_SLEEP' || value === 'DEEP SLEEP') esp.mode = 'DEEP SLEEP';
-        else if (value === 'LIGHT_SLEEP' || value === 'LIGHT SLEEP') esp.mode = 'LIGHT SLEEP';
-        else esp.mode = 'ONLINE';
+        esp.mode = normalizeModeDisplay(value);
     }
-    else if (field === 'powerSource') {
+    else if (field === 'powerSource' && value && typeof value === 'object') {
         esp.powerSource = value.type;
         if (value.capacity) esp.batteryCapacityMah = value.capacity;
         else if (value.type === 'DC') esp.batteryCapacityMah = null;
     }
     else if (field === 'batteryCapacity') {
         esp.powerSource = 'BATTERY';
-        esp.batteryCapacityMah = Math.max(100, parseInt(value, 10) || 2500);
+        esp.batteryCapacityMah = Math.max(100, parseInt(String(value).replace(/\D/g, ''), 10) || 2500);
     }
 }
 
-// Quando o nó dormindo acorda e reconecta, esvazia a fila de pendências
+// Verifica se o estado reportado pelo ESP Central já reflete a configuração do usuário
+function doesRemoteMatchUserSetting(remoteEsp, field, userValue) {
+    if (field === 'name') {
+        return String(remoteEsp.name || '').trim() === String(userValue || '').trim();
+    }
+    if (field === 'interval') {
+        const remoteMin = parseInt(String(remoteEsp.interval || '').replace(/\D/g, ''), 10);
+        const targetMin = parseInt(String(userValue || '').replace(/\D/g, ''), 10);
+        return remoteMin === targetMin;
+    }
+    if (field === 'mode') {
+        return normalizeModeDisplay(remoteEsp.mode) === normalizeModeDisplay(userValue);
+    }
+    if (field === 'unit') {
+        return String(remoteEsp.unit || '').trim() === String(userValue || '').trim();
+    }
+    if (field === 'powerSource' && userValue && typeof userValue === 'object') {
+        const sameType = String(remoteEsp.powerSource || '').toUpperCase() === String(userValue.type || '').toUpperCase();
+        if (userValue.type === 'DC') return sameType;
+        return sameType && (!userValue.capacity || Number(remoteEsp.batteryCapacityMah) === Number(userValue.capacity));
+    }
+    if (field === 'batteryCapacity') {
+        const targetCap = Math.max(100, parseInt(String(userValue).replace(/\D/g, ''), 10) || 2500);
+        return Number(remoteEsp.batteryCapacityMah) === targetCap;
+    }
+    return true;
+}
+
+// Quando o nó dormindo acorda e reconecta, despacha imediatamente todas as alterações pendentes
 function processPendingQueueForEsp(esp) {
     const items = AppState.pendingQueue.filter(q => q.espId === esp.id);
     if (items.length === 0) return;
 
-    console.log(`[OfflineSync] Sincronizando ${items.length} alterações para o ${esp.name} que acabou de acordar!`);
+    console.log(`[OfflineSync] Sincronizando com prioridade ${items.length} alterações para o ${esp.name} que acabou de acordar!`);
 
     items.forEach(item => {
         applySettingDirectly(esp, item.field, item.value);
-        sendConfigToRemoteAPI(esp.id, item.field, item.value);
+        const apiVal = item.apiValue !== undefined ? item.apiValue : item.value;
+        sendConfigToRemoteAPI(esp.id, item.field, apiVal);
     });
 
-    // Remove os itens processados da fila
-    AppState.pendingQueue = AppState.pendingQueue.filter(q => q.espId !== esp.id);
-
-    showToastNotification(`⚡ Sincronização concluída: ${items.length} alteração(ões) entregue(s) ao ${esp.name}!`);
+    showToastNotification(`⚡ Sincronizando ${items.length} configuração(ões) prioritária(s) com ${esp.name}!`);
     updateUI();
 }
 
@@ -1482,8 +1575,9 @@ async function executeDeleteEsp() {
     // 1. Remove da lista local no AppState
     AppState.esps = AppState.esps.filter(e => e.id !== espId);
 
-    // 2. Remove comandos pendentes na fila offline relacionados a este nó
+    // 2. Remove comandos pendentes na fila offline e configurações travadas relacionados a este nó
     AppState.pendingQueue = AppState.pendingQueue.filter(q => q.espId !== espId);
+    clearUserConfigsForEsp(espId);
 
     // 3. Se estiver conectado ao ESP Central, envia comando de exclusão via REST
     if (!AppState.api.simulatorMode) {
@@ -1555,11 +1649,19 @@ function setSimulatorMode(enabled) {
     }
 }
 
+async function flushUnsentConfigQueue() {
+    if (AppState.api.simulatorMode || unsentConfigQueue.length === 0) return;
+    const copy = unsentConfigQueue.splice(0, unsentConfigQueue.length);
+    for (const cmd of copy) {
+        await sendConfigToRemoteAPI(cmd.espId, cmd.field, cmd.value, true);
+    }
+}
+
 async function fetchStatusFromESP32() {
     // NO MOMENTO EM QUE O ESP ESTÁ AGENDADO PARA RECEBER DADOS DOS PERIFÉRICOS,
-    // A CONEXÃO DA INTERFACE COM O ESP CENTRAL CESSA IMEDIATAMENTE!
+    // O POLLING DE LEITURA CESSA TEMPORARIAMENTE (mas envios de configuração têm prioridade).
     if (AppState.receptionSchedule && AppState.receptionSchedule.inReceptionWindow) {
-        console.log('[Fetch] Ignorado: Conexão web pausada durante janela agendada de recepção de periféricos.');
+        console.log('[Fetch] Ignorado: Polling de leitura pausado durante janela agendada de recepção de periféricos.');
         return;
     }
 
@@ -1568,6 +1670,9 @@ async function fetchStatusFromESP32() {
         simulateSensorFluctuation();
         return;
     }
+
+    // Antes de ler o status do Central, garante que qualquer configuração não enviada seja despachada primeiro!
+    await flushUnsentConfigQueue();
 
     try {
         const response = await fetch(`${AppState.api.baseUrl}/api/status`, {
@@ -1585,31 +1690,49 @@ async function fetchStatusFromESP32() {
 
             // Se algum nó acordou, entrega as alterações pendentes da fila offline
             remoteEsps.forEach(remoteEsp => {
+                remoteEsp.mode = normalizeModeDisplay(remoteEsp.mode);
                 const localEsp = AppState.esps.find(e => e.id === remoteEsp.id);
                 if (localEsp && (localEsp.connectivity === 'DORMINDO' || localEsp.connectivity === 'OFFLINE') && remoteEsp.connectivity === 'ONLINE') {
                     processPendingQueueForEsp(remoteEsp);
                 }
             });
 
-            // Preserva edições recentes locais se o Central/Periférico ainda não refletiu
+            // PRIORIDADE ABSOLUTA DE CONFIGURAÇÃO:
+            // Os dados recebidos pela interface NUNCA sobrescrevem configurações definidas pelo usuário!
+            const allConfigFields = ['name', 'interval', 'mode', 'unit', 'powerSource', 'batteryCapacity'];
             remoteEsps.forEach(remoteEsp => {
-                ['name', 'interval', 'mode', 'unit'].forEach(f => {
-                    const pendingVal = getPendingLocalEdit(remoteEsp.id, f);
-                    if (pendingVal !== null) {
-                        if (f === 'interval') {
-                            remoteEsp.interval = `${String(pendingVal).replace(/\D/g, '')} min`;
-                        } else if (f === 'mode') {
-                            remoteEsp.mode = (pendingVal === 'DEEP_SLEEP' || pendingVal === 'DEEP SLEEP') ? 'DEEP SLEEP' : ((pendingVal === 'LIGHT_SLEEP' || pendingVal === 'LIGHT SLEEP') ? 'LIGHT SLEEP' : 'ONLINE');
-                        } else if (f === 'name') {
-                            remoteEsp.name = pendingVal;
-                        } else if (f === 'unit') {
-                            remoteEsp.unit = pendingVal;
+                allConfigFields.forEach(f => {
+                    const entry = getPendingLocalEditEntry(remoteEsp.id, f);
+                    if (entry !== null) {
+                        const remoteMatches = doesRemoteMatchUserSetting(remoteEsp, f, entry.value);
+                        // Impõe sempre o valor configurado pelo usuário na interface
+                        applySettingDirectly(remoteEsp, f, entry.value);
+
+                        if (!remoteMatches) {
+                            // Se o Central ainda não refletiu a configuração do usuário (ex: reiniciou ou pacote falhou),
+                            // reenvia automaticamente para o Central com prioridade (máx. 1 reenvio a cada 5s)
+                            const now = Date.now();
+                            if (!entry.lastResyncMs || (now - entry.lastResyncMs > 5000)) {
+                                entry.lastResyncMs = now;
+                                sendConfigToRemoteAPI(remoteEsp.id, f, entry.apiValue, true);
+                            }
+                        } else if (remoteEsp.hasPendingConfig === false) {
+                            // Central e periférico já confirmaram sincronização deste campo!
+                            AppState.pendingQueue = AppState.pendingQueue.filter(
+                                q => !(q.espId === remoteEsp.id && q.field === f)
+                            );
                         }
                     }
                 });
+
+                // Se o ESP Central informa que não há mais pacotes de configuração pendentes para este nó,
+                // limpa o badge de espera correspondente
+                if (remoteEsp.hasPendingConfig === false) {
+                    AppState.pendingQueue = AppState.pendingQueue.filter(q => q.espId !== remoteEsp.id);
+                }
             });
 
-            // Apenas dados reais enviados pelo Central são exibidos
+            // Apenas dados reais enviados pelo Central (com configurações do usuário preservadas) são exibidos
             AppState.esps = remoteEsps;
 
             // Sincroniza agendamento da janela de recepção se informado pelo ESP Central
@@ -1643,35 +1766,32 @@ async function fetchStatusFromESP32() {
             updateUI();
         } else {
             AppState.api.isOnline = false;
-            AppState.esps = [];
-            AppState.notifications = [
-                `⚠️ Erro HTTP ${response.status} ao conectar ao ESP Central.`,
-                "⚠️ Nenhum ESP conectado ou acessível no momento."
-            ];
+            if (AppState.esps.length === 0) {
+                AppState.notifications = [
+                    `⚠️ Erro HTTP ${response.status} ao conectar ao ESP Central.`,
+                    "⚠️ Nenhum ESP conectado ou acessível no momento."
+                ];
+            }
             updateUI();
         }
     } catch (err) {
         console.warn('[Fetch] Falha na comunicação com o ESP32 REST server:', err.message);
         AppState.api.isOnline = false;
-        AppState.esps = [];
-        AppState.notifications = [
-            `⚠️ Falha ao conectar ao ESP Central (${AppState.api.baseUrl}).`,
-            "⚠️ Nenhum ESP conectado ou acessível no momento."
-        ];
+        if (AppState.esps.length === 0) {
+            AppState.notifications = [
+                `⚠️ Falha ao conectar ao ESP Central (${AppState.api.baseUrl}).`,
+                "⚠️ Nenhum ESP conectado ou acessível no momento."
+            ];
+        }
         updateUI();
     }
 }
 
-async function sendConfigToRemoteAPI(espId, field, value) {
+async function sendConfigToRemoteAPI(espId, field, value, isRetry = false) {
     if (AppState.api.simulatorMode) return;
 
-    // Se a janela de recepção estiver ativa, enfileira para não interferir no rádio
-    if (AppState.receptionSchedule && AppState.receptionSchedule.inReceptionWindow) {
-        const esp = AppState.esps.find(e => e.id === espId) || { name: espId };
-        showToastNotification('📡 ESP Central ocupado recebendo periféricos. Comando mantido na fila offline!');
-        return;
-    }
-
+    // PRIORIDADE DE CONFIGURAÇÃO:
+    // O envio de configurações para o ESP Central NUNCA é descartado ou bloqueado pela janela de recepção!
     try {
         const res = await fetch(`${AppState.api.baseUrl}/api/config`, {
             method: 'POST',
@@ -1680,14 +1800,29 @@ async function sendConfigToRemoteAPI(espId, field, value) {
         });
         if (res.ok) {
             const data = await res.json();
-            if (data.status === 'sent') {
-                showToastNotification(`✓ Configuração despachada diretamente ao ${espId} via ESP-NOW!`);
-            } else if (data.status === 'queued') {
-                showToastNotification(`⏳ Nó em repouso. Comando mantido na fila do ESP Central para quando acordar.`);
+            // Remove da fila de não-enviados se estava lá
+            const idx = unsentConfigQueue.findIndex(c => c.espId === espId && c.field === field);
+            if (idx !== -1) unsentConfigQueue.splice(idx, 1);
+
+            if (!isRetry) {
+                if (data.status === 'sent') {
+                    showToastNotification(`✓ Configuração despachada prioritariamente ao ${espId} via ESP-NOW!`);
+                } else if (data.status === 'queued') {
+                    showToastNotification(`⏳ Configuração gravada no ESP Central! Será entregue assim que o periférico responder.`);
+                }
             }
+        } else {
+            throw new Error(`HTTP ${res.status}`);
         }
     } catch (err) {
-        console.error('[Fetch] Erro ao enviar configuração para ESP32:', err);
+        console.error('[Fetch] Erro ao enviar configuração para ESP32 (será reenviada automaticamente):', err);
+        // Garante que a configuração não se perca se o HTTP falhar momentaneamente
+        const existingIdx = unsentConfigQueue.findIndex(c => c.espId === espId && c.field === field);
+        if (existingIdx !== -1) {
+            unsentConfigQueue[existingIdx].value = value;
+        } else {
+            unsentConfigQueue.push({ espId, field, value });
+        }
     }
 }
 
@@ -1748,17 +1883,17 @@ function enterReceptionWindow() {
     sched.inReceptionWindow = true;
     sched.windowSecondsRemaining = sched.windowDurationSeconds;
 
-    // 1. CESSA A CONEXÃO DA INTERFACE COM O ESP CENTRAL NO MOMENTO AGENDADO
+    // 1. CESSA O POLLING DE LEITURA COM O ESP CENTRAL NO MOMENTO AGENDADO
     stopPollingLoop();
 
     // 2. Notificação e alerta destacado
-    const msg = "📡 Janela agendada de recepção ativa! Conexão web pausada temporariamente para que o ESP Central receba os periféricos sem interferência no rádio Wi-Fi.";
+    const msg = "📡 Janela agendada de recepção ativa! Polling pausado temporariamente para priorizar o rádio ESP-NOW.";
     if (!AppState.notifications.includes(msg)) {
         AppState.notifications.unshift(msg);
         if (AppState.notifications.length > 5) AppState.notifications.pop();
     }
 
-    showToastNotification(`📡 Conexão web pausada: ESP Central recebendo dados dos periféricos (${sched.windowDurationSeconds}s)...`);
+    showToastNotification(`📡 Janela de recepção: ESP Central sincronizando com periféricos (${sched.windowDurationSeconds}s)...`);
     updateHeaderBadges();
     updateUI();
 }
@@ -1771,8 +1906,8 @@ function exitReceptionWindow() {
     // 1. REESTABELECE A CONEXÃO DA INTERFACE COM O ESP CENTRAL
     startPollingLoop();
 
-    // 2. Busca imediatamente os novos dados enviados pelos periféricos
-    fetchStatusFromESP32();
+    // 2. Despacha configurações pendentes e busca novos dados enviados pelos periféricos
+    flushUnsentConfigQueue().then(() => fetchStatusFromESP32());
 
     // 3. Notificação
     const msg = "⚡ Janela de recepção concluída! Conexão web restabelecida e dados atualizados do ESP Central.";
@@ -2135,7 +2270,12 @@ function setupEventListeners() {
             const cycleInput = document.getElementById('input-reception-cycle');
             const durationInput = document.getElementById('input-reception-duration');
 
-            if (ipInput) AppState.api.baseUrl = ipInput.value.trim();
+            if (ipInput && ipInput.value.trim()) {
+                AppState.api.baseUrl = ipInput.value.trim().replace(/\/+$/, '');
+                try {
+                    localStorage.setItem('sitio_online_api_base_url', AppState.api.baseUrl);
+                } catch (err) {}
+            }
             if (intervalInput) AppState.api.pollingInterval = parseInt(intervalInput.value, 10);
             if (cycleInput) AppState.receptionSchedule.cycleSeconds = parseInt(cycleInput.value, 10) || 60;
             if (durationInput) AppState.receptionSchedule.windowDurationSeconds = parseInt(durationInput.value, 10) || 10;
@@ -2143,6 +2283,7 @@ function setupEventListeners() {
             if (simChk) setSimulatorMode(simChk.checked);
 
             startPollingLoop();
+            flushUnsentConfigQueue().then(() => fetchStatusFromESP32());
             if (modal) modal.classList.remove('open');
             updateUI();
             showToastNotification('Configurações da API atualizadas!');

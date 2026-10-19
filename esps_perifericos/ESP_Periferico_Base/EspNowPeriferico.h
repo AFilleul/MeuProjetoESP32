@@ -29,6 +29,12 @@ public:
     // Aguarda ativamente o recebimento do pacote de Broadcast do Central até timeoutMs
     bool aguardarBeaconCentral(unsigned long timeoutMs = 8000);
 
+    // Restaura o MAC do Central salvo na memória RTC (evita perda de conexão pós-Deep Sleep)
+    bool restaurarCentralMac(const uint8_t* macSalvo);
+
+    // Janela prioritária de escuta de configurações (tem prioridade sobre envio e sobre entrada em sleep)
+    bool aguardarPrioridadeConfiguracao(unsigned long janelaMs = 400);
+
     // Envia os dados do nó via Unicast diretamente para o Central descoberto
     bool enviarDadosUnicast(const PacoteDadosSensores& dados);
 
@@ -52,6 +58,7 @@ public:
     String getCentralMacString() const;
     String getLocalMacString() const;
     bool temConfiguracaoRecebida() const;
+    void limparFlagConfiguracao();
 
 private:
     uint8_t canalWifi;
@@ -59,6 +66,7 @@ private:
     uint8_t macCentral[6];
     volatile bool beaconRecebidoFlag;
     volatile bool configRecebidaFlag;
+    volatile unsigned long ultimoConfigRecebidoMs;
     PacoteConfiguracao ultimaConfiguracao;
 
     ConfigCallback onConfigCallback;

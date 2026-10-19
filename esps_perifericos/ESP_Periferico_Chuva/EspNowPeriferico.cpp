@@ -8,6 +8,7 @@ EspNowPeriferico::EspNowPeriferico()
       centralEncontrado(false), 
       beaconRecebidoFlag(false),
       configRecebidaFlag(false),
+      ultimoConfigRecebidoMs(0),
       onConfigCallback(nullptr) {
     instancia = this;
     memset(macCentral, 0, sizeof(macCentral));
@@ -50,6 +51,7 @@ bool EspNowPeriferico::iniciar(uint8_t canal) {
     this->centralEncontrado = false;
     this->beaconRecebidoFlag = false;
     this->configRecebidaFlag = false;
+    this->ultimoConfigRecebidoMs = 0;
 
     // 1. Configura rádio Wi-Fi em Station e desconecta
     WiFi.mode(WIFI_STA);
@@ -92,7 +94,7 @@ bool EspNowPeriferico::adicionarPeer(const uint8_t* macAddr, uint8_t canal, bool
 
     esp_now_peer_info_t peerInfo = {};
     memcpy(peerInfo.peer_addr, macAddr, 6);
-    peerInfo.channel = canal;
+    peerInfo.channel = 0; // Usa canal ativo atual do rádio
     peerInfo.encrypt = encrypt;
     peerInfo.ifidx = WIFI_IF_STA;
 
@@ -107,21 +109,56 @@ bool EspNowPeriferico::adicionarPeer(const uint8_t* macAddr, uint8_t canal, bool
     return true;
 }
 
+bool EspNowPeriferico::restaurarCentralMac(const uint8_t* macSalvo) {
+    if (!macSalvo) return false;
+    bool valido = false;
+    for (int i = 0; i < 6; i++) {
+        if (macSalvo[i] != 0x00 && macSalvo[i] != 0xFF) {
+            valido = true;
+            break;
+        }
+    }
+    if (!valido) return false;
+
+    memcpy(macCentral, macSalvo, 6);
+    centralEncontrado = adicionarPeer(macCentral, 0, false);
+    return centralEncontrado;
+}
+
 bool EspNowPeriferico::aguardarBeaconCentral(unsigned long timeoutMs) {
     unsigned long inicio = millis();
-    Serial.printf("[ESP-NOW Periferico] Escutando o ar por Broadcast (timeout: %lu ms)...\n", timeoutMs);
+    Serial.printf("[ESP-NOW Periferico] Escutando o ar por Broadcast ou Configuracao (timeout: %lu ms)...\n", timeoutMs);
 
-    while (!beaconRecebidoFlag && (millis() - inicio < timeoutMs)) {
+    while (!beaconRecebidoFlag && !centralEncontrado && (millis() - inicio < timeoutMs)) {
         delay(10);
     }
 
-    if (beaconRecebidoFlag && centralEncontrado) {
-        Serial.printf("[ESP-NOW Periferico] Central DESCOBERTO: %s\n", getCentralMacString().c_str());
+    if (centralEncontrado) {
+        Serial.printf("[ESP-NOW Periferico] Central ATIVO: %s\n", getCentralMacString().c_str());
         return true;
     }
 
     Serial.println("[ESP-NOW Periferico] Timeout: Beacon do Central nao capturado.");
     return false;
+}
+
+bool EspNowPeriferico::aguardarPrioridadeConfiguracao(unsigned long janelaMs) {
+    unsigned long inicio = millis();
+    bool recebeuAlguma = false;
+
+    while (millis() - inicio < janelaMs) {
+        if (configRecebidaFlag) {
+            configRecebidaFlag = false;
+            recebeuAlguma = true;
+            // Estende a janela por mais 250ms após receber uma configuração para garantir
+            // que o ACK seja transmitido por completo e que pacotes adicionais sejam recebidos!
+            inicio = millis();
+            if (janelaMs < 250) janelaMs = 250;
+        }
+        delay(10);
+    }
+
+    return recebeuAlguma;
 }
 
 bool EspNowPeriferico::enviarDadosUnicast(const PacoteDadosSensores& dados) {
@@ -167,7 +204,7 @@ void EspNowPeriferico::executarJanelaPareamento(unsigned long duracaoMs,
 
     Serial.println("\n****************************************************************");
     Serial.println("  >>> MODO PAREAMENTO ATIVO (POS HARD-RESET) <<<");
-    Serial.printf("  Permanecendo ONLINE por %lu segundos para receber configs...\n", duracaoMs / 1000);
+    Serial.printf("  Permanecendo ONLINE por %lu segundos com PRIORIDADE para receber configs...\n", duracaoMs / 1000);
     Serial.println("****************************************************************\n");
 
     while (millis() - inicio < duracaoMs) {
@@ -180,6 +217,19 @@ void EspNowPeriferico::executarJanelaPareamento(unsigned long duracaoMs,
             Serial.printf("[Pareamento] Nó online. Tempo restante na janela de pareamento: %lu segundos...\n", restanteSegundos);
         }
 
+        // PRIORIDADE 1: Verifica se uma configuração foi recebida do Central ANTES de qualquer envio!
+        if (configRecebidaFlag) {
+            configRecebidaFlag = false;
+            Serial.println("[Pareamento] PRIORIDADE: Configuração recebida e aplicada! Aguardando estabilização do ACK...");
+            if (onConfigRecebida && !onConfigCallback) {
+                onConfigRecebida(ultimaConfiguracao);
+            }
+            // Aguarda 150ms para garantir entrega limpa do ACK e agenda envio de telemetria atualizada
+            delay(150);
+            ultimoEnvioPresenca = millis() - 4500;
+            continue;
+        }
+
         // Se ainda não descobriu o Central, continua aguardando o beacon
         if (!centralEncontrado) {
             delay(50);
@@ -187,29 +237,20 @@ void EspNowPeriferico::executarJanelaPareamento(unsigned long duracaoMs,
         }
 
         // A cada 5 segundos, envia pacote de telemetria / anúncio de presença
+        // IMPORTANTE: Preserva pacote.modoOperacao real (ex: "ONLINE", "DEEP_SLEEP") para NUNCA sobrescrever a config no Central!
         if (millis() - ultimoEnvioPresenca >= 5000) {
             ultimoEnvioPresenca = millis();
             if (geradorTelemetria) {
                 PacoteDadosSensores pacote = geradorTelemetria();
                 pacote.pareamentoAtivo = 1;
-                strncpy(pacote.modoOperacao, "PAREAMENTO", sizeof(pacote.modoOperacao) - 1);
                 enviarDadosUnicast(pacote);
-            }
-        }
-
-        // Se uma configuração foi recebida do Central durante a janela
-        if (configRecebidaFlag) {
-            configRecebidaFlag = false;
-            Serial.println("[Pareamento] Nova configuracao recebida do Central!");
-            if (onConfigRecebida) {
-                onConfigRecebida(ultimaConfiguracao);
             }
         }
 
         delay(50);
     }
 
-    Serial.println("\n[Pareamento] Janela de 1 minuto finalizada. Prosseguindo com o ciclo operacional normal.\n");
+    Serial.println("\n[Pareamento] Janela de 1 minuto finalizada. Prosseguindo com o ciclo operacional configurado.\n");
 }
 
 void EspNowPeriferico::definirCallbackConfiguracao(ConfigCallback callback) {
@@ -247,6 +288,10 @@ bool EspNowPeriferico::temConfiguracaoRecebida() const {
     return configRecebidaFlag;
 }
 
+void EspNowPeriferico::limparFlagConfiguracao() {
+    configRecebidaFlag = false;
+}
+
 // ============================================================================
 // CALLBACKS NATIVOS DO ESP-NOW (C -> C++)
 // ============================================================================
@@ -268,25 +313,27 @@ void EspNowPeriferico::onDataReceive(const uint8_t* mac_addr, const uint8_t* dat
         PacoteBroadcastBeacon beacon;
         memcpy(&beacon, data, sizeof(beacon));
 
-        Serial.printf("\n[ESP-NOW Periferico] Beacon recebido de \"%s\" via Broadcast!\n", beacon.identificadorCentral);
-        Serial.printf("[ESP-NOW Periferico] Auto-Discovery: MAC do Central obtido = %02X:%02X:%02X:%02X:%02X:%02X\n",
-                      mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-
         memcpy(instancia->macCentral, mac, 6);
         instancia->centralEncontrado = true;
-        instancia->adicionarPeer(mac, instancia->canalWifi, false);
+        instancia->adicionarPeer(mac, 0, false);
         instancia->beaconRecebidoFlag = true;
     }
-    // 2. PACOTE DE CONFIGURAÇÃO ENVIADO PELO CENTRAL (UNICAST)
+    // 2. PACOTE DE CONFIGURAÇÃO ENVIADO PELO CENTRAL (UNICAST - PRIORIDADE MÁXIMA)
     else if (tipo == MSG_CONFIG_PARAMETROS && dataLen == sizeof(PacoteConfiguracao)) {
         PacoteConfiguracao cfg;
         memcpy(&cfg, data, sizeof(cfg));
 
-        Serial.printf("\n[ESP-NOW Periferico] Pacote de Configuracao recebido do Central!\n");
-        Serial.printf("  Alvo: \"%s\" | Novo Intervalo: %d min | Novo Modo: \"%s\"\n", 
-                      cfg.targetNodeId, cfg.novoIntervaloMin, cfg.novoModo);
+        // Garante que o MAC do Central remetente está registrado como peer para resposta imediata de ACK
+        memcpy(instancia->macCentral, mac, 6);
+        instancia->centralEncontrado = true;
+        instancia->adicionarPeer(mac, 0, false);
+
+        Serial.printf("\n[ESP-NOW Periferico] PRIORIDADE: Pacote de Configuracao recebido do Central!\n");
+        Serial.printf("  Alvo: \"%s\" | Novo Intervalo: %d min | Novo Modo: \"%s\" | Novo Nome: \"%s\"\n", 
+                      cfg.targetNodeId, cfg.novoIntervaloMin, cfg.novoModo, cfg.novoNome);
 
         memcpy(&instancia->ultimaConfiguracao, &cfg, sizeof(cfg));
+        instancia->ultimoConfigRecebidoMs = millis();
         instancia->configRecebidaFlag = true;
 
         if (instancia->onConfigCallback) {

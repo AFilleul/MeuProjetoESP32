@@ -13,6 +13,8 @@ RTC_DATA_ATTR uint32_t tempoUptimeAcumuladoSegundos = 0;
 RTC_DATA_ATTR uint16_t rtcIntervaloMin = READ_INTERVAL_MIN;
 RTC_DATA_ATTR char rtcModoOperacao[16] = OPERATING_MODE;
 RTC_DATA_ATTR char rtcNodeName[32] = NODE_NAME;
+RTC_DATA_ATTR uint8_t rtcMacCentral[6] = {0};
+RTC_DATA_ATTR bool rtcCentralConhecido = false;
 
 // ============================================================================
 // LEITURA DOS SENSORES
@@ -61,11 +63,17 @@ PacoteDadosSensores montarPacoteSensores(unsigned long tempoInicioMs) {
     return pacote;
 }
 
-// Callback executado quando o ESP Central envia uma nova configuração
+// Callback executado com PRIORIDADE MÁXIMA quando o ESP Central envia uma nova configuração
 void aplicarNovaConfiguracao(const PacoteConfiguracao& cfg) {
     Serial.println("\n--------------------------------------------------------");
-    Serial.println("[CONFIGURAÇÃO] Aplicando parâmetros recebidos do Central:");
+    Serial.println("[CONFIGURAÇÃO PRIORITÁRIA] Aplicando parâmetros recebidos do Central:");
     
+    // Salva o MAC do Central na memória RTC caso ainda não estivesse salvo
+    if (espNowNode.centralDescoberto()) {
+        espNowNode.getCentralMac(rtcMacCentral);
+        rtcCentralConhecido = true;
+    }
+
     // Atualiza intervalo se fornecido
     if (cfg.novoIntervaloMin > 0) {
         rtcIntervaloMin = cfg.novoIntervaloMin;
@@ -78,6 +86,8 @@ void aplicarNovaConfiguracao(const PacoteConfiguracao& cfg) {
             strcpy(rtcModoOperacao, "DEEP_SLEEP");
         } else if (strcmp(cfg.novoModo, "LIGHT SLEEP") == 0 || strcmp(cfg.novoModo, "LIGHT_SLEEP") == 0) {
             strcpy(rtcModoOperacao, "LIGHT_SLEEP");
+        } else if (strcmp(cfg.novoModo, "ONLINE") == 0) {
+            strcpy(rtcModoOperacao, "ONLINE");
         } else {
             strncpy(rtcModoOperacao, cfg.novoModo, sizeof(rtcModoOperacao) - 1);
             rtcModoOperacao[sizeof(rtcModoOperacao) - 1] = '\0';
@@ -88,6 +98,7 @@ void aplicarNovaConfiguracao(const PacoteConfiguracao& cfg) {
     // Atualiza apelido/nome se fornecido
     if (strlen(cfg.novoNome) > 0) {
         strncpy(rtcNodeName, cfg.novoNome, sizeof(rtcNodeName) - 1);
+        rtcNodeName[sizeof(rtcNodeName) - 1] = '\0';
         Serial.printf("  -> Novo Nome do Nó: %s\n", rtcNodeName);
     }
     Serial.println("--------------------------------------------------------");
@@ -118,8 +129,13 @@ void setup() {
         return;
     }
 
-    // 2. Configura callback de recepção de configurações
+    // 2. Configura callback prioritário de recepção de configurações
     espNowNode.definirCallbackConfiguracao(aplicarNovaConfiguracao);
+
+    // 3. Se já conhecia o MAC do Central antes do Deep Sleep, restaura imediatamente
+    if (rtcCentralConhecido) {
+        espNowNode.restaurarCentralMac(rtcMacCentral);
+    }
 
     // ========================================================================
     // CASO A: HARD RESET (LIGADO NA ENERGIA OU BOTÃO RESET PRESSIONADO)
@@ -128,18 +144,25 @@ void setup() {
     if (isColdBoot) {
         bootCount = 1;
         Serial.println("\n[AVISO] HARD RESET DETECTADO!");
-        Serial.println("[AVISO] O nó permanecerá ONLINE por 60 segundos (1 minuto) para parear e receber configurações.");
+        Serial.println("[AVISO] O nó permanecerá ONLINE por 60 segundos (1 minuto) com prioridade para receber configurações.");
 
         // Aguarda o beacon do Central para descobrir o MAC
-        espNowNode.aguardarBeaconCentral(8000);
+        if (espNowNode.aguardarBeaconCentral(8000)) {
+            espNowNode.getCentralMac(rtcMacCentral);
+            rtcCentralConhecido = true;
+        }
 
         // Executa a janela de pareamento de 1 minuto (60.000 ms)
-        // Durante este tempo, o nó envia pacotes de presença a cada 5s e processa configs do Central
         espNowNode.executarJanelaPareamento(
             60000, 
             [&tempoInicioMs]() { return montarPacoteSensores(tempoInicioMs); },
             aplicarNovaConfiguracao
         );
+
+        if (espNowNode.centralDescoberto()) {
+            espNowNode.getCentralMac(rtcMacCentral);
+            rtcCentralConhecido = true;
+        }
 
         // Atualiza tempo ativo
         tempoUptimeAcumuladoSegundos += ((millis() - tempoInicioMs) / 1000);
@@ -149,6 +172,7 @@ void setup() {
             Serial.println("[Periferico] MODO ONLINE CONTÍNUO ativo. O nó permanecerá 100% ativo e conectado no loop().");
             return; // Continua no loop()
         } else {
+            espNowNode.aguardarPrioridadeConfiguracao(250);
             Serial.printf("[Periferico] Entrando em Deep Sleep pelo tempo configurado (%d min)...\n", rtcIntervaloMin);
             espNowNode.entrarDeepSleep(rtcIntervaloMin);
             return;
@@ -157,33 +181,41 @@ void setup() {
 
     // ========================================================================
     // CASO B: DESPERTAR PROGRAMADO DO DEEP SLEEP (CICLO RÁPIDO DE BATERIA)
-    // -> ACORDA, MEDE, DESPACHA EM POUCOS MILISSEGUNDOS E RETORNA A DORMIR
+    // -> PRIORIZA RECEBER CONFIGURAÇÕES ANTES E DEPOIS DO ENVIO DE DADOS
     // ========================================================================
     bootCount++;
     Serial.printf("[CICLO WAKEUP] Retorno de Deep Sleep (Ciclo #%u).\n", bootCount);
 
-    // 1. Escuta brevemente pelo beacon do Central
-    bool centralOk = espNowNode.aguardarBeaconCentral(4000);
+    // 1. Garante descoberta do Central (usa MAC salvo em RTC ou escuta beacon)
+    bool centralOk = espNowNode.centralDescoberto();
+    if (!centralOk) {
+        centralOk = espNowNode.aguardarBeaconCentral(4000);
+    }
 
     if (centralOk) {
-        // 2. Monta pacote e envia Unicast direto
+        espNowNode.getCentralMac(rtcMacCentral);
+        rtcCentralConhecido = true;
+
+        // 2. PRIORIDADE ANTES DE ENVIAR: Escuta por 150ms caso o Central já esteja transmitindo configuração
+        espNowNode.aguardarPrioridadeConfiguracao(150);
+
+        // 3. Monta pacote (já com configurações atualizadas se recebidas) e envia Unicast ao Central
         PacoteDadosSensores dados = montarPacoteSensores(tempoInicioMs);
         espNowNode.enviarDadosUnicast(dados);
         
-        // Breve janela de escuta (250 ms) para capturar eventual configuração pendente enviada pelo Central
-        unsigned long tEspera = millis();
-        while (millis() - tEspera < 250) {
-            delay(10);
-            if (espNowNode.temConfiguracaoRecebida()) {
-                Serial.println("[CICLO WAKEUP] Nova configuração pendente recebida e aplicada com sucesso!");
-                break;
-            }
+        // 4. PRIORIDADE PÓS-ENVIO: Janela de 600ms (auto-estendida se receber pacote) para capturar
+        //    qualquer configuração pendente despachada pelo Central ao detectar nosso wakeup!
+        if (espNowNode.aguardarPrioridadeConfiguracao(600)) {
+            Serial.println("[CICLO WAKEUP] Nova configuração prioritária recebida e aplicada! Enviando estado atualizado...");
+            PacoteDadosSensores dadosAtualizados = montarPacoteSensores(tempoInicioMs);
+            espNowNode.enviarDadosUnicast(dadosAtualizados);
+            delay(100);
         }
     } else {
         Serial.println("[CICLO WAKEUP] Central indisponivel neste ciclo. Retornando ao sono.");
     }
 
-    // 3. Acumula tempo de funcionamento
+    // 5. Acumula tempo de funcionamento
     tempoUptimeAcumuladoSegundos += ((millis() - tempoInicioMs) / 1000) + 1;
 
     // Se o periférico foi reconfigurado para o modo ONLINE durante o ciclo de despertar:
@@ -200,31 +232,62 @@ void setup() {
 
 void loop() {
     // ========================================================================
-    // MODO ONLINE CONTÍNUO (NÓ LIGADO PERMANENTEMENTE NA TOMADA / FONTE DC)
-    // O microcontrolador não desliga o rádio nem a CPU, respondendo instantaneamente
+    // MODO ONLINE CONTÍNUO / LIGHT SLEEP
+    // PRIORIDADE 1: Receber e confirmar configurações antes de enviar telemetria
     // ========================================================================
     static unsigned long ultimoEnvioOnline = 0;
-    unsigned long agora = millis();
 
-    // 1. Envio periódico de telemetria completa dos sensores
-    unsigned long intervaloMs = (unsigned long)rtcIntervaloMin * 60000UL;
-    if (intervaloMs == 0) intervaloMs = 5000; // Padrão de segurança: 5 segundos
-
-    if (agora - ultimoEnvioOnline >= intervaloMs || ultimoEnvioOnline == 0) {
-        ultimoEnvioOnline = agora;
-        PacoteDadosSensores dados = montarPacoteSensores(agora);
-        espNowNode.enviarDadosUnicast(dados);
-        Serial.printf("[MODO ONLINE] Telemetria despachada | Umidade: %.1f%% | Bateria: %d%% | Uptime: %lu s\n", 
-                      dados.sensorUmidade, dados.bateriaPct, (unsigned long)dados.tempoUptimeSegundos);
+    // Se ainda não descobriu o Central, escuta brevemente pelo beacon
+    if (!espNowNode.centralDescoberto()) {
+        if (espNowNode.aguardarBeaconCentral(2000)) {
+            espNowNode.getCentralMac(rtcMacCentral);
+            rtcCentralConhecido = true;
+        }
     }
 
-    // 2. Se a qualquer momento o modo for alterado pela Web para "DEEP_SLEEP", o nó entra em repouso
+    // 1. PRIORIDADE MÁXIMA: Verifica e processa configurações recebidas do Central
+    if (espNowNode.aguardarPrioridadeConfiguracao(50)) {
+        Serial.println("[MODO ONLINE] Configuração prioritária aplicada! Despachando telemetria confirmando novo estado...");
+        PacoteDadosSensores dadosConfirmacao = montarPacoteSensores(millis());
+        espNowNode.enviarDadosUnicast(dadosConfirmacao);
+        ultimoEnvioOnline = millis();
+        delay(100);
+    }
+
+    unsigned long agora = millis();
+    unsigned long intervaloMs = (unsigned long)rtcIntervaloMin * 60000UL;
+    if (intervaloMs == 0) intervaloMs = 5000;
+
+    // 2. Envio periódico de telemetria completa dos sensores
+    if (agora - ultimoEnvioOnline >= intervaloMs || ultimoEnvioOnline == 0) {
+        // Verifica novamente se chegou configuração imediatamente antes de medir/enviar
+        espNowNode.aguardarPrioridadeConfiguracao(80);
+
+        ultimoEnvioOnline = millis();
+        PacoteDadosSensores dados = montarPacoteSensores(ultimoEnvioOnline);
+        espNowNode.enviarDadosUnicast(dados);
+        Serial.printf("[MODO ONLINE] Telemetria despachada | Umidade: %.1f%% | Bateria: %d%% | Modo: %s | Intervalo: %d min\n", 
+                      dados.sensorUmidade, dados.bateriaPct, rtcModoOperacao, rtcIntervaloMin);
+
+        // Mantém janela ativa de 500ms após cada envio para receber configurações pendentes do Central
+        if (espNowNode.aguardarPrioridadeConfiguracao(500)) {
+            PacoteDadosSensores dadosConfirmacao = montarPacoteSensores(millis());
+            espNowNode.enviarDadosUnicast(dadosConfirmacao);
+            delay(100);
+        }
+    }
+
+    // 3. Se o modo for alterado para DEEP_SLEEP ou LIGHT_SLEEP, aguarda estabilização do ACK antes de dormir
     if (strcmp(rtcModoOperacao, "DEEP_SLEEP") == 0) {
-        Serial.printf("\n[MODO ONLINE -> SLEEP] Comando recebido da Web: Entrando em Deep Sleep (%d min)...\n", rtcIntervaloMin);
+        espNowNode.aguardarPrioridadeConfiguracao(200);
+        Serial.printf("\n[MODO ONLINE -> SLEEP] Comando confirmado: Entrando em Deep Sleep (%d min)...\n", rtcIntervaloMin);
         espNowNode.entrarDeepSleep(rtcIntervaloMin);
     } else if (strcmp(rtcModoOperacao, "LIGHT_SLEEP") == 0) {
+        espNowNode.aguardarPrioridadeConfiguracao(200);
         esp_sleep_enable_timer_wakeup((uint64_t)rtcIntervaloMin * 60ULL * 1000000ULL);
         esp_light_sleep_start();
+        // Ao acordar do Light Sleep, força envio e janela de escuta na próxima iteração
+        ultimoEnvioOnline = 0;
     }
 
     delay(20);

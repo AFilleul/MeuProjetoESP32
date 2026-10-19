@@ -30,6 +30,11 @@ bool EspNowCentral::iniciar(uint8_t canal, bool configurarWifi) {
         esp_wifi_set_promiscuous(true);
         esp_wifi_set_channel(canalWifi, WIFI_SECOND_CHAN_NONE);
         esp_wifi_set_promiscuous(false);
+    } else {
+        uint8_t currentCh = WiFi.channel();
+        if (currentCh > 0) {
+            this->canalWifi = currentCh;
+        }
     }
 
     Serial.printf("[ESP-NOW Central] Inicializando no Canal Wi-Fi %d...\n", canalWifi);
@@ -55,7 +60,7 @@ bool EspNowCentral::iniciar(uint8_t canal, bool configurarWifi) {
     #endif
 
     // 4. Registra o endereço de Broadcast padrão na lista de peers
-    if (!registrarPeer(broadcastMac, canalWifi, false)) {
+    if (!registrarPeer(broadcastMac, 0, false)) {
         Serial.println("[ESP-NOW Central] Aviso: Falha ao cadastrar peer Broadcast.");
     } else {
         Serial.println("[ESP-NOW Central] Peer Broadcast (FF:FF:FF:FF:FF:FF) configurado com sucesso.");
@@ -72,7 +77,8 @@ bool EspNowCentral::registrarPeer(const uint8_t* macAddr, uint8_t canal, bool en
 
     esp_now_peer_info_t peerInfo = {};
     memcpy(peerInfo.peer_addr, macAddr, 6);
-    peerInfo.channel = canal;
+    // Usa channel = 0 para utilizar automaticamente o canal Wi-Fi ativo da interface STA
+    peerInfo.channel = 0;
     peerInfo.encrypt = encrypt;
     peerInfo.ifidx = WIFI_IF_STA;
 

@@ -17,8 +17,20 @@ struct Device {
 
     uint8_t macAddr[6];         // Endereço MAC físico para envio via ESP-NOW
     bool hasMac;                // Indica se o MAC já foi capturado via telemetria
-    bool hasPendingConfig;      // Indica se há configuração aguardando despacho para este nó
+    bool hasPendingConfig;      // Indica se há configuração aguardando despacho/ACK para este nó
     PacoteConfiguracao pendingConfig; // Pacote de configuração enfileirado
+    unsigned long lastConfigSendMs;   // Timestamp do último envio de configuração via ESP-NOW
+
+    // Flags e valores de configuração definidos pelo usuário na Interface Web
+    // Garantem que a telemetria recebida do periférico NUNCA sobrescreva as configurações do usuário
+    bool hasUserName;
+    bool hasUserInterval;
+    bool hasUserMode;
+    bool hasUserUnit;
+    bool hasUserPower;
+    uint16_t targetIntervalMin;
+    String targetModeEspNow;    // "DEEP_SLEEP", "LIGHT_SLEEP", "ONLINE"
+    String targetName;
 
     // Telemetria e configurações do nó agrícola
     String mode;
@@ -41,13 +53,22 @@ struct Device {
           lastSeen(millis()),
           hasMac(false),
           hasPendingConfig(false),
-          mode("DEEP SLEEP"),
+          lastConfigSendMs(0),
+          hasUserName(false),
+          hasUserInterval(false),
+          hasUserMode(false),
+          hasUserUnit(false),
+          hasUserPower(false),
+          targetIntervalMin(5),
+          targetModeEspNow("ONLINE"),
+          targetName(devName.length() > 0 ? devName : devId),
+          mode("ONLINE"),
           sensorValue("--"),
-          interval("60 min"),
-          intervalMs(60UL * 60UL * 1000UL),
+          interval("5 min"),
+          intervalMs(5UL * 60UL * 1000UL),
           unit("% Umidade"),
           batteryPct(100),
-          powerSource("BATTERY"),
+          powerSource("DC"),
           batteryCapacityMah(2500),
           uptimeHours(1) {
               memset(macAddr, 0, sizeof(macAddr));
@@ -83,9 +104,11 @@ public:
 
     // Monitoramento e Estado
     void updateLastSeen(const String& id);
-    void updateTelemetry(const String& id, float umidade, uint8_t batPct, const String& modo = "", uint32_t uptimeSec = 0);
+    void updateTelemetry(const String& id, float umidade, uint8_t batPct, const String& modo = "", uint32_t uptimeSec = 0, const String& reportedName = "");
     void setDeviceStatus(const String& id, bool online);
     void setInterval(const String& id, const String& intervalStr);
+    void setUnit(const String& id, const String& unitStr);
+    void setPowerConfig(const String& id, const String& powerType, uint32_t capacityMah);
     void checkKeepAlive(unsigned long timeoutMs = 60000);
     void checkScheduleTimeout(unsigned long toleranciaMs = 30000);
 
@@ -96,6 +119,10 @@ public:
     bool hasPendingConfig(const String& id) const;
     bool getPendingConfig(const String& id, PacoteConfiguracao& outCfg, uint8_t* outMac) const;
     void clearPendingConfig(const String& id);
+
+    // Utilitários de normalização de modo
+    static String normalizeModeForEspNow(const String& rawMode);
+    static String normalizeModeForDisplay(const String& rawMode);
 
     // Notificações Dinâmicas para a Interface Web
     void addNotification(const String& msg);

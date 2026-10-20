@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Firmwares do Sítio Online</title>
+<style>
+  :root {
+    --bg: #f6f7f4;
+    --surface: #ffffff;
+    --text: #1d2420;
+    --muted: #5d6a62;
+    --line: #d5dbd4;
+    --accent: #2f6f4e;
+    --n-start-bg: #cfe8d8;   --n-start-bd: #2f6f4e;
+    --n-step-bg: #ffffff;    --n-step-bd: #6b7a70;
+    --n-dec-bg: #fff3cf;     --n-dec-bd: #a67c00;
+    --n-sleep-bg: #d6e4f7;   --n-sleep-bd: #2c5d9c;
+    --n-io-bg: #fbdcc8;      --n-io-bd: #b4551c;
+    --n-sub-bg: #e6dcf3;     --n-sub-bd: #6b4a9c;
+    --edge: #6b7a70;
+    --node-text: #1d2420;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #141815; --surface: #1c221e; --text: #e6ebe7; --muted: #9aa89f; --line: #2f3832;
+      --accent: #6fcf9a;
+      --n-start-bg: #1f4a33; --n-start-bd: #6fcf9a;
+      --n-step-bg: #232b26;  --n-step-bd: #7d8c82;
+      --n-dec-bg: #4a3d12;   --n-dec-bd: #e0b84a;
+      --n-sleep-bg: #1d3556; --n-sleep-bd: #7fb0ee;
+      --n-io-bg: #532a12;    --n-io-bd: #f0a070;
+      --n-sub-bg: #35264f;   --n-sub-bd: #b79be0;
+      --edge: #8a998f; --node-text: #e6ebe7;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #141815; --surface: #1c221e; --text: #e6ebe7; --muted: #9aa89f; --line: #2f3832;
+    --accent: #6fcf9a;
+    --n-start-bg: #1f4a33; --n-start-bd: #6fcf9a;
+    --n-step-bg: #232b26;  --n-step-bd: #7d8c82;
+    --n-dec-bg: #4a3d12;   --n-dec-bd: #e0b84a;
+    --n-sleep-bg: #1d3556; --n-sleep-bd: #7fb0ee;
+    --n-io-bg: #532a12;    --n-io-bd: #f0a070;
+    --n-sub-bg: #35264f;   --n-sub-bd: #b79be0;
+    --edge: #8a998f; --node-text: #e6ebe7;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header, main { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
+  header { padding-top: 28px; }
+  h1 { font-size: 1.6rem; margin: 0 0 4px; }
+  h2 { font-size: 1.3rem; margin: 48px 0 6px; padding-top: 12px; border-top: 1px solid var(--line); }
+  h3 { font-size: 1.05rem; margin: 28px 0 4px; }
+  p { margin: 6px 0; }
+  .muted { color: var(--muted); }
+  nav { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 0; }
+  nav a { color: var(--accent); text-decoration: none; border: 1px solid var(--line);
+          background: var(--surface); padding: 4px 12px; border-radius: 999px; font-size: .9rem; }
+  nav a:hover { border-color: var(--accent); }
+  code { overflow-wrap: anywhere; font: .88em ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--surface);
+         border: 1px solid var(--line); padding: 0 4px; border-radius: 4px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 14px 0 0; font-size: .85rem; color: var(--muted); }
+  .legend i { display: inline-block; width: 14px; height: 14px; border-radius: 3px; vertical-align: -2px;
+              margin-right: 5px; border: 2px solid; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .graph-wrap { position: relative; }
+  .graph { width: 100%; height: 520px; }
+  .tools { position: absolute; top: 8px; right: 8px; display: flex; gap: 4px; z-index: 2; }
+  .tools button { width: 32px; height: 32px; border: 1px solid var(--line); background: var(--surface);
+                  color: var(--text); border-radius: 6px; font-size: 16px; cursor: pointer; }
+  .tools button:hover { border-color: var(--accent); }
+  .detail { border-top: 1px solid var(--line); padding: 10px 14px; min-height: 64px; font-size: .93rem; }
+  .detail b { color: var(--accent); }
+  .detail .hint { color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; font-size: .9rem; margin: 8px 0; }
+  th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; }
+  .tablewrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+  ul.notes { padding-left: 20px; }
+  ul.notes li { margin: 6px 0; }
+  footer { max-width: 1100px; margin: 40px auto; padding: 0 16px; color: var(--muted); font-size: .85rem; }
+  noscript { display: block; padding: 12px; background: var(--n-dec-bg); border-radius: 8px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Firmwares do Sítio Online</h1>
+  <p class="muted">Fluxo de execução de cada <code>.ino</code>. Clique em um bloco do grafo para ver o que ele faz e onde está no código. Arraste os blocos para reorganizar; use os botões do canto para zoom.</p>
+  <nav>
+    <a href="#topologia">Topologia</a>
+    <a href="#edge">Nó edge (bateria)</a>
+    <a href="#gateway">Gateway (Central)</a>
+    <a href="#obs">Observações</a>
+  </nav>
+  <div class="legend" aria-label="Legenda">
+    <span><i style="background:var(--n-start-bg);border-color:var(--n-start-bd)"></i>início</span>
+    <span><i style="background:var(--n-step-bg);border-color:var(--n-step-bd)"></i>passo</span>
+    <span><i style="background:var(--n-dec-bg);border-color:var(--n-dec-bd);border-style:dashed"></i>decisão</span>
+    <span><i style="background:var(--n-io-bg);border-color:var(--n-io-bd)"></i>rádio / sensor</span>
+    <span><i style="background:var(--n-sleep-bg);border-color:var(--n-sleep-bd)"></i>sono</span>
+    <span><i style="background:var(--n-sub-bg);border-color:var(--n-sub-bd)"></i>callback / API</span>
+  </div>
+  <noscript>Os grafos precisam de JavaScript.</noscript>
+</header>
+
+<main>
+  <h2 id="topologia">Topologia e mensagens</h2>
+  <p class="muted">Quem fala com quem. Todos os nós usam o mesmo canal Wi-Fi (<code>ESPNOW_WIFI_CHANNEL = 1</code>).</p>
+  <div class="card"><div class="graph-wrap"><div class="tools"></div><div class="graph" id="g-topo" style="height:420px"></div></div>
+    <div class="detail"></div></div>
+
+  <h2 id="edge">Nó edge — bateria e Deep Sleep</h2>
+  <p>Dois sketches com o mesmo fluxo: <code>esps_perifericos/ESP_Periferico_Chuva/ESP_Periferico_Chuva.ino</code> (sensor de chuva MH-RD com BJT NPN) e <code>esps_perifericos/ESP_Periferico_Base/ESP_Periferico_Base.ino</code> (template, umidade do solo por ADC). Só mudam a leitura do sensor e a função de bateria.</p>
+
+  <div class="tablewrap"><table>
+    <tr><th>Variável RTC</th><th>Função</th></tr>
+    <tr><td><code>bootCount</code></td><td>Ciclos de acordar (vai no campo <code>cicloWakeup</code> da telemetria)</td></tr>
+    <tr><td><code>tempoUptimeAcumuladoSegundos</code></td><td>Tempo ativo somado entre ciclos</td></tr>
+    <tr><td><code>rtcIntervaloMin</code></td><td>Intervalo de leitura e de sono (inicia em <code>READ_INTERVAL_MIN</code>)</td></tr>
+    <tr><td><code>rtcModoOperacao</code></td><td><code>DEEP_SLEEP</code>, <code>LIGHT_SLEEP</code> ou <code>ONLINE</code></td></tr>
+    <tr><td><code>rtcNodeName</code></td><td>Nome amigável, alterável pelo Central</td></tr>
+    <tr><td><code>rtcMacCentral</code> / <code>rtcCentralConhecido</code></td><td>MAC do Central guardado para não esperar beacon a cada ciclo</td></tr>
+  </table></div>
+
+  <h3>1. Boot e ciclo de sono</h3>
+  <div class="card"><div class="graph-wrap"><div class="tools"></div><div class="graph" id="g-edge-boot" style="height:860px"></div></div>
+    <div class="detail"></div></div>
+
+  <h3>2. <code>loop()</code> — modo ONLINE contínuo e Light Sleep</h3>
+  <div class="card"><div class="graph-wrap"><div class="tools"></div><div class="graph" id="g-edge-loop" style="height:640px"></div></div>
+    <div class="detail"></div></div>
+
+  <h3>3. Callback de configuração recebida</h3>
+  <div class="card"><div class="graph-wrap"><div class="tools"></div><div class="graph" id="g-edge-cfg" style="height:520px"></div></div>
+    <div class="detail"></div></div>
+
+  <h2 id="gateway">Gateway — Central (<code>MeuProjetoESP32.ino</code>)</h2>
+  <p>Fica sempre ligado: ESP-NOW para os nós, Wi-Fi (ou ponto de acesso próprio) e servidor HTTP na porta 80 com API REST.</p>
+
+  <h3>1. Inicialização</h3>
+  <div class="card"><div class="graph-wrap"><div class="tools"></div><div class="graph" id="g-gw-setup" style="height:640px"></div></div>
+    <div class="detail"></div></div>
+
+  <h3>2. <code>loop()</code></h3>
+  <div class="card"><div class="graph-wrap"><div class="tools"></div><div class="graph" id="g-gw-loop" style="height:560px"></div></div>
+    <div class="detail"></div></div>
+
+  <h3>3. Callbacks ESP-NOW</h3>
+  <div class="card"><div class="graph-wrap"><div class="tools"></div><div class="graph" id="g-gw-cb" style="height:560px"></div></div>
+    <div class="detail"></div></div>
+
+  <h3>4. API REST</h3>
+  <div class="card"><div class="graph-wrap"><div class="tools"></div><div class="graph" id="g-gw-api" style="height:520px"></div></div>
+    <div class="detail"></div></div>
+
+  <section id="extras"></section>
+
+  <h2 id="obs">Observações sobre o estado atual</h2>
+  <ul class="notes">
+    <li><b>Sem gestão de energia solar no gateway.</b> Ele roda sempre ligado (Wi-Fi/AP, WebServer e beacon a cada 1,5 s), sem leitura de tensão de bateria ou painel e sem política de sono.</li>
+    <li><b>Janela de recepção é só informativa.</b> Os 10 s de cada 60 s aparecem em <code>/api/status</code>, mas o rádio do Central nunca é desligado fora dela.</li>
+    <li><b>Bateria e temperatura simuladas nos nós.</b> <code>lerBateria()</code> devolve 3980 mV fixo e a temperatura é constante (25,0 e 24,8).</li>
+    <li><b>Código duplicado.</b> <code>EspNowPeriferico</code> e <code>ProtocoloMensagens.h</code> existem em três cópias (raiz, <code>Base</code> e <code>Chuva</code>).</li>
+    <li><b><code>secrets.h</code></b> não está no repositório; copie <code>secrets.example.h</code> antes de compilar o Central.</li>
+  </ul>
+</main>
+
+<footer>Grafos lidos de <code>data/firmwares.json</code>. As referências <code>arquivo:linha</code> valem para o commit <code>eb8cf9a</code> da <code>main</code>. <span id="src"></span></footer>
+
+<script src="vendor/vis-network.min.js"></script>
+<script src="data/firmwares.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  // ---------------------------------------------------------------------
+  // Dados dos grafos.  nó: [id, tipo, rótulo, detalhe]   aresta: [de, para, rótulo, "back"?]
+  // ---------------------------------------------------------------------
+  var E_BOOT = "esp_periferico_*.ino";
+  var GRAPHS = {};
+
+  // ---------------------------------------------------------------------
+  // Renderização
+  // ---------------------------------------------------------------------
+  var KIND = {
+    start: { bg: "--n-start-bg", bd: "--n-start-bd", shape: "box", dashes: false, bold: true },
+    step:  { bg: "--n-step-bg",  bd: "--n-step-bd",  shape: "box", dashes: false },
+    dec:   { bg: "--n-dec-bg",   bd: "--n-dec-bd",   shape: "box", dashes: [6, 4] },
+    io:    { bg: "--n-io-bg",    bd: "--n-io-bd",    shape: "box", dashes: false },
+    sleep: { bg: "--n-sleep-bg", bd: "--n-sleep-bd", shape: "box", dashes: false },
+    sub:   { bg: "--n-sub-bg",   bd: "--n-sub-bd",   shape: "box", dashes: false }
+  };
+  var KIND_NAME = { start: "início", step: "passo", dec: "decisão", io: "rádio / sensor", sleep: "sono", sub: "callback / API" };
+
+  var instances = [];
+
+  function css(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+
+  function esc(s) {
+    return String(s).replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+
+  // Níveis por caminho mais longo, ignorando arestas "back" (ciclos).
+  function levels(def) {
+    var lv = {};
+    def.nodes.forEach(function (n) { lv[n[0]] = 0; });
+    var fwd = def.edges.filter(function (e) { return e[3] !== "back"; });
+    for (var pass = 0; pass < def.nodes.length; pass++) {
+      var changed = false;
+      fwd.forEach(function (e) {
+        if (lv[e[1]] < lv[e[0]] + 1) { lv[e[1]] = lv[e[0]] + 1; changed = true; }
+      });
+      if (!changed) break;
+    }
+    return lv;
+  }
+
+  function build(id) {
+    var def = GRAPHS[id];
+    var lv = levels(def);
+    var nodes = def.nodes.map(function (n) {
+      var k = KIND[n[1]];
+      return {
+        id: n[0], label: n[2], shape: k.shape, level: lv[n[0]],
+        color: { background: css(k.bg), border: css(k.bd), highlight: { background: css(k.bg), border: css("--accent") } },
+        borderWidth: 2, borderWidthSelected: 3,
+        shapeProperties: { borderDashes: k.dashes, borderRadius: 8 },
+        font: { color: css("--node-text"), size: 14, face: "system-ui, sans-serif", bold: k.bold ? "bold" : undefined },
+        margin: 10, widthConstraint: { maximum: 260 }
+      };
+    });
+    var edges = def.edges.map(function (e, i) {
+      var back = e[3] === "back";
+      return {
+        id: "e" + i, from: e[0], to: e[1], label: e[2] || undefined,
+        arrows: e[3] === "both" ? "to, from" : "to", dashes: back,
+        color: { color: css("--edge"), highlight: css("--accent") },
+        font: { color: css("--muted"), size: 12, strokeWidth: 4, strokeColor: css("--surface"), align: "horizontal" },
+        smooth: back ? { type: "curvedCW", roundness: 0.35 } : { type: "cubicBezier", roundness: 0.5 }
+      };
+    });
+    return { nodes: new vis.DataSet(nodes), edges: new vis.DataSet(edges) };
+  }
+
+  function options(def) {
+    return {
+      layout: { hierarchical: { enabled: true, direction: def.dir, sortMethod: "directed",
+                                levelSeparation: def.dir === "LR" ? 360 : 95, nodeSpacing: def.dir === "LR" ? 110 : 280,
+                                treeSpacing: 260, shakeTowards: "roots" } },
+      physics: { enabled: false },
+      interaction: { dragView: false, zoomView: false, hover: true, tooltipDelay: 150 },
+      nodes: { chosen: true }
+    };
+  }
+
+  function showDetail(box, def, nodeId) {
+    if (!nodeId) {
+      box.innerHTML = '<span class="hint">Clique em um bloco para ver detalhes.' + (def.extra ? "<br>" + esc(def.extra) : "") + "</span>";
+      return;
+    }
+    var n = def.nodes.filter(function (x) { return x[0] === nodeId; })[0];
+    var label = n[2].replace(/\n/g, " ");
+    box.innerHTML = "<b>" + esc(label) + '</b> <span class="hint">(' + KIND_NAME[n[1]] + ")</span><br>" +
+                    (n[3] ? esc(n[3]) : '<span class="hint">Sem detalhes adicionais.</span>');
+  }
+
+  function mount(id) {
+    var el = document.getElementById(id);
+    var card = el.closest(".card");
+    var box = card.querySelector(".detail");
+    var tools = card.querySelector(".tools");
+    var def = GRAPHS[id];
+    var data = build(id);
+    var network = new vis.Network(el, data, options(def));
+    showDetail(box, def, null);
+
+    network.on("click", function (p) { showDetail(box, def, p.nodes.length ? p.nodes[0] : null); });
+    network.once("afterDrawing", function () { network.fit({ animation: false }); });
+
+    function zoom(f) {
+      network.moveTo({ scale: network.getScale() * f, animation: { duration: 150, easingFunction: "easeInOutQuad" } });
+    }
+    [["+", "Aproximar", function () { zoom(1.25); }],
+     ["−", "Afastar", function () { zoom(0.8); }],
+     ["⤢", "Ajustar à tela", function () { network.fit({ animation: { duration: 200 } }); }]
+    ].forEach(function (b) {
+      var btn = document.createElement("button");
+      btn.type = "button"; btn.textContent = b[0]; btn.title = b[1]; btn.setAttribute("aria-label", b[1]);
+      btn.addEventListener("click", b[2]);
+      tools.appendChild(btn);
+    });
+
+    instances.push({ id: id, network: network, el: el, box: box, def: def });
+  }
+
+  function recolor() {
+    instances.forEach(function (inst) {
+      var data = build(inst.id);
+      inst.network.setData(data);
+      inst.network.once("afterDrawing", function () { inst.network.fit({ animation: false }); });
+    });
+  }
+
+  if (typeof vis === "undefined") {
+    document.querySelector("header").insertAdjacentHTML("beforeend",
+      '<p class="detail">Não foi possível carregar vendor/vis-network.min.js. Abra esta página a partir da pasta docs/ do repositório.</p>');
+    return;
+  }
+
+  function normalize(data) {
+    var out = {};
+    Object.keys(data.graphs).forEach(function (id) {
+      var g = data.graphs[id];
+      out[id] = {
+        title: g.title || id, dir: g.direction || "UD", extra: g.note || "",
+        nodes: g.nodes.map(function (n) { return [n.id, n.kind, n.label, n.detail || ""]; }),
+        edges: g.edges.map(function (e) { return [e.from, e.to, e.label || "", e.style || ""]; })
+      };
+    });
+    return out;
+  }
+
+  function ensureContainers() {
+    var extras = document.getElementById("extras");
+    Object.keys(GRAPHS).forEach(function (id) {
+      if (document.getElementById(id)) return;
+      if (!extras.firstChild) extras.insertAdjacentHTML("beforeend", '<h2>Outros grafos</h2>');
+      extras.insertAdjacentHTML("beforeend",
+        "<h3>" + esc(GRAPHS[id].title) + '</h3><div class="card"><div class="graph-wrap"><div class="tools"></div>' +
+        '<div class="graph" id="' + esc(id) + '" style="height:560px"></div></div><div class="detail"></div></div>');
+    });
+  }
+
+  function start(data, origin) {
+    GRAPHS = normalize(data);
+    ensureContainers();
+    Object.keys(GRAPHS).forEach(mount);
+    document.getElementById("src").textContent =
+      origin === "json" ? "" : "(carregado de data/firmwares.js, a cópia gerada; rode tools/gen_firmwares_js.mjs após editar o JSON)";
+  }
+
+  fetch("data/firmwares.json", { cache: "no-store" })
+    .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(function (d) { start(d, "json"); })
+    .catch(function () {
+      // Aberto direto do disco (file://) o navegador bloqueia o fetch: usa a cópia gerada.
+      if (window.FIRMWARE_GRAPHS) start(window.FIRMWARE_GRAPHS, "js");
+      else document.querySelector("header").insertAdjacentHTML("beforeend",
+        '<p class="detail">Não foi possível carregar data/firmwares.json nem data/firmwares.js.</p>');
+    });
+
+  var mq = window.matchMedia("(prefers-color-scheme: dark)");
+  if (mq.addEventListener) mq.addEventListener("change", recolor);
+  window.addEventListener("resize", function () {
+    instances.forEach(function (i) { i.network.redraw(); });
+  });
+})();
+</script>
+</body>
+</html>

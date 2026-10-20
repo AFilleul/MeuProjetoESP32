@@ -87,8 +87,10 @@
 <body>
 <header>
   <h1>Firmwares do Sítio Online</h1>
-  <p class="muted">Fluxo de execução de cada <code>.ino</code>. Clique em um bloco do grafo para ver o que ele faz e onde está no código. Arraste os blocos para reorganizar; use os botões do canto para zoom.</p>
+  <p class="muted">Visão geral do projeto, o uso do sistema hoje e a proposta de melhoria; depois, o fluxo de execução de cada <code>.ino</code>. Clique em um bloco do grafo para ver o que ele faz e onde está no código. Arraste os blocos para reorganizar; use os botões do canto para zoom.</p>
   <nav>
+    <a href="#inicio">Visão geral</a>
+    <a href="#proposta">Hoje × proposta</a>
     <a href="#topologia">Topologia</a>
     <a href="#edge">Nó edge (bateria)</a>
     <a href="#gateway">Gateway (Central)</a>
@@ -106,6 +108,37 @@
 </header>
 
 <main>
+  <h2 id="inicio">Visão geral do projeto</h2>
+  <p>O núcleo é o firmware (laranja): protocolo, Central e nós. A governança são 3 arquivos na raiz: <code>AGENTS.md</code> (regras), <code>STATUS.md</code> (estado, proposta P1–P5 e limpeza) e <code>CHANGELOG.md</code> (o que mudou e como foi testado).</p>
+  <div class="card"><div class="graph-wrap"><div class="tools"></div><div class="graph" id="g-avaliacao" style="height:600px"></div></div>
+    <div class="detail"></div></div>
+  <h2 id="proposta">Hoje × proposta de melhoria</h2>
+  <p>O mesmo uso do sistema, antes e depois. As melhorias vêm dos riscos de <code>docs/recomendacoes-firmware.md</code> e estão priorizadas no <code>STATUS.md</code>.</p>
+  <div class="tablewrap"><table>
+    <tr><th>#</th><th>Hoje</th><th>Proposta</th><th>Efeito para o usuário</th></tr>
+    <tr><td>P1</td><td>Nós presos ao canal 1</td><td>Nó adota o canal do beacon e varre 1–13 se perder o Central</td><td>Funciona com qualquer roteador</td></tr>
+    <tr><td>P2</td><td>Configuração só na RAM do Central</td><td>Gravada no NVS e restaurada no boot</td><td>Queda de energia não apaga nada</td></tr>
+    <tr><td>P3</td><td>Callback e API mexem na mesma lista ao mesmo tempo</td><td>Fila FreeRTOS; só o <code>loop()</code> altera a lista</td><td>Fim de reinícios intermitentes</td></tr>
+    <tr><td>P4</td><td>Bateria e temperatura fixas</td><td>Bateria medida por ADC</td><td>Autonomia exibida é real</td></tr>
+    <tr><td>P5</td><td>ESP-NOW aberto e API sem senha</td><td>Pareamento autorizado, criptografia e token nos POST</td><td>Ninguém de fora injeta dados ou muda configuração</td></tr>
+  </table></div>
+  <h3>Uso do sistema hoje</h3>
+  <div class="card"><div class="graph-wrap"><div class="tools"></div><div class="graph" id="g-uso-atual" style="height:1000px"></div></div>
+    <div class="detail"></div></div>
+  <h3>Uso do sistema proposto</h3>
+  <div class="card"><div class="graph-wrap"><div class="tools"></div><div class="graph" id="g-uso-proposto" style="height:1000px"></div></div>
+    <div class="detail"></div></div>
+  <h3>Topologia proposta</h3>
+  <p class="muted">A topologia de hoje está logo abaixo, em "Topologia e mensagens".</p>
+  <div class="card"><div class="graph-wrap"><div class="tools"></div><div class="graph" id="g-topo-proposta" style="height:420px"></div></div>
+    <div class="detail"></div></div>
+  <h3>Recursos do ESP32: em uso e propostos</h3>
+  <div class="card"><div class="graph-wrap"><div class="tools"></div><div class="graph" id="g-capacidades" style="height:560px"></div></div>
+    <div class="detail"></div></div>
+
+  <h2 id="hoje">Firmwares hoje, em detalhe</h2>
+  <p class="muted">Fluxo de execução de cada <code>.ino</code> como está no código, com referência de arquivo e linha.</p>
+
   <h2 id="topologia">Topologia e mensagens</h2>
   <p class="muted">Quem fala com quem. Todos os nós usam o mesmo canal Wi-Fi (<code>ESPNOW_WIFI_CHANNEL = 1</code>).</p>
   <div class="card"><div class="graph-wrap"><div class="tools"></div><div class="graph" id="g-topo" style="height:420px"></div></div>

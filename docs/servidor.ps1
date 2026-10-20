@@ -16,7 +16,7 @@ foreach ($port in 8765..8775) {
 }
 if (-not $listener) { Write-Host 'Nenhuma porta livre entre 8765 e 8775.'; exit 1 }
 
-$url = "http://localhost:$port/firmwares.html"
+$url = "http://localhost:$port/"
 Write-Host "Servindo $root em http://localhost:$port/"
 Write-Host "Abrindo $url"
 Write-Host 'Feche esta janela ou aperte Ctrl+C para parar.'
@@ -27,7 +27,7 @@ try {
     $ctx = $listener.GetContext()
     $res = $ctx.Response
     $rel = [Uri]::UnescapeDataString($ctx.Request.Url.AbsolutePath.TrimStart('/'))
-    if ($rel -eq '') { $rel = 'firmwares.html' }
+    if ($rel -eq '') { $rel = 'index.html' }
     $path = [IO.Path]::GetFullPath((Join-Path $root $rel))
     if ($path.StartsWith($root, [StringComparison]::OrdinalIgnoreCase) -and (Test-Path $path -PathType Leaf)) {
       $ext = [IO.Path]::GetExtension($path).ToLower()

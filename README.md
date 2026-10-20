@@ -2,7 +2,7 @@
 
 Monitoramento agrícola com ESP32 usando **ESP-NOW** (sem roteador entre os nós) e uma **API REST + interface web** no Central.
 
-> **Fluxos interativos:** abra [`docs/firmwares.html`](docs/firmwares.html) no navegador para ver os grafos de cada firmware (vis.js, funciona offline). Clique em um bloco para ver o que faz e a linha do código. Os diagramas Mermaid abaixo são a versão renderizada pelo GitHub.
+> **Fluxos interativos:** abra [`docs/index.html`](docs/index.html) (publicado em https://afilleul.github.io/MeuProjetoESP32/ após ativar o GitHub Pages) no navegador para ver os grafos de cada firmware (vis.js, funciona offline). Clique em um bloco para ver o que faz e a linha do código. Os diagramas Mermaid abaixo são a versão renderizada pelo GitHub.
 
 ### Abrindo e atualizando os fluxos
 
@@ -10,7 +10,7 @@ Monitoramento agrícola com ESP32 usando **ESP-NOW** (sem roteador entre os nós
 
 **Atualizar:** os grafos vêm de [`docs/data/firmwares.json`](docs/data/firmwares.json) (nós, arestas, texto de cada bloco). Edite o JSON e atualize o navegador (F5). Um grafo novo em `graphs` aparece sozinho na seção "Outros grafos".
 
-**Abrir sem servidor:** navegadores bloqueiam `fetch()` de arquivos locais, então um duplo clique direto em `firmwares.html` usa a cópia `docs/data/firmwares.js`. Para regenerá-la depois de editar o JSON, rode `node tools/gen_firmwares_js.mjs` (Node 18+), que também valida o JSON: ids repetidos, arestas para nós inexistentes, `kind` inválido. Com `--check` ele só confere se o `.js` está em dia. Quem usa o `.bat` não precisa disso.
+**Abrir sem servidor:** navegadores bloqueiam `fetch()` de arquivos locais, então um duplo clique direto em `index.html` usa a cópia `docs/data/firmwares.js`. Para regenerá-la depois de editar o JSON, rode `node tools/gen_firmwares_js.mjs` (Node 18+), que também valida o JSON: ids repetidos, arestas para nós inexistentes, `kind` inválido. Com `--check` ele só confere se o `.js` está em dia. Quem usa o `.bat` não precisa disso.
 
 ## Visão geral dos firmwares
 

@@ -90,7 +90,7 @@
     {
      "id": "visual",
      "kind": "step",
-     "label": "Este visualizador\ndocs/firmwares.html",
+     "label": "Este visualizador\ndocs/index.html",
      "detail": "Mostra o sistema atual e a proposta de melhoria. Fonte única: docs/data/firmwares.json; depois de editar, rode node tools/gen_firmwares_js.mjs."
     },
     {

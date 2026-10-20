@@ -13,6 +13,8 @@ Cada entrada diz **o que mudou** e **como foi verificado**.
   seção "Hoje × proposta": tabela P1–P5, uso do sistema hoje e proposto, topologia proposta e recursos do ESP32.
 
 ### Alterado
+- Visualizador renomeado para `docs/index.html` (+ `docs/.nojekyll`) para publicação pelo GitHub Pages;
+  `servidor.ps1`, README e AGENTS ajustados. Verificação: `abrir-firmwares.bat` servindo a página localmente.
 - Os 8 grafos de firmware ganharam uma nota "Conceito:" explicando o recurso do ESP32 envolvido.
   Verificação: `node tools/gen_firmwares_js.mjs --check` = ok; página servida localmente com os 13 grafos
   renderizados e console sem erros.

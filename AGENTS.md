@@ -13,7 +13,7 @@
 | `STATUS.md` | Onde estamos, o que vem a seguir, o que limpar | **Ao fim de toda sessão de trabalho** |
 | `CHANGELOG.md` | O que mudou, em linguagem simples | **A cada commit que muda comportamento** |
 
-O **visualizador de fluxos** (`docs/abrir-firmwares.bat` → `docs/firmwares.html`) mostra o sistema hoje e a proposta de
+O **visualizador de fluxos** (`docs/abrir-firmwares.bat` → `docs/index.html`) mostra o sistema hoje e a proposta de
 melhoria (P1–P5), além do fluxo de cada firmware. A fonte é `docs/data/firmwares.json`. Depois de mudar o
 comportamento de um firmware, atualize o JSON e rode `node tools/gen_firmwares_js.mjs`.
 O `README.md` é a porta de entrada, com a arquitetura resumida e o link para o visualizador. Não criar outros documentos de

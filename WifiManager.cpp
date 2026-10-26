@@ -1,4 +1,4 @@
-﻿#include "WifiManager.h"
+#include "WifiManager.h"
 
 WifiManager::WifiManager() 
     : ssid(nullptr), password(nullptr), lastReconnectAttempt(0), reconnectInterval(10000) {}
@@ -78,10 +78,18 @@ void WifiManager::handleReconnect(unsigned long intervalMs) {
     unsigned long currentMillis = millis();
     if (currentMillis - lastReconnectAttempt >= reconnectInterval) {
         lastReconnectAttempt = currentMillis;
-        Serial.println("\n[WifiManager] Alerta: Conexao Wi-Fi perdida! Tentando reconectar...");
-        
-        WiFi.disconnect();
-        WiFi.reconnect();
+        Serial.println("\n[WifiManager] Alerta: Wi-Fi desconectado! Tentando reconectar em background...");
+
+        WiFi.mode(WIFI_STA);
+        if (this->ssid != nullptr) {
+            if (this->password != nullptr && strlen(this->password) > 0) {
+                WiFi.begin(this->ssid, this->password);
+            } else {
+                WiFi.begin(this->ssid);
+            }
+        } else {
+            WiFi.reconnect();
+        }
     }
 }
 

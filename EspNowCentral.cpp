@@ -91,6 +91,11 @@ bool EspNowCentral::registrarPeer(const uint8_t* macAddr, uint8_t canal, bool en
 }
 
 bool EspNowCentral::enviarBroadcastBeacon(const char* identificador) {
+    uint8_t chAtivo = WiFi.channel();
+    if (chAtivo > 0) {
+        this->canalWifi = chAtivo;
+    }
+
     PacoteBroadcastBeacon beacon;
     beacon.tipo = MSG_BROADCAST_BEACON;
     beacon.timestampMillis = millis();

@@ -212,10 +212,10 @@ void setup() {
         PacoteDadosSensores dados = montarPacoteSensores(tempoInicioMs);
         espNowNode.enviarDadosUnicast(dados);
 
-        // 3. PRIORIDADE PÓS-ENVIO: Janela de 600ms (auto-estendida se receber pacote) para capturar
-        //    qualquer configuração pendente despachada pelo Central ao detectar nosso wakeup!
-        if (espNowNode.aguardarPrioridadeConfiguracao(600)) {
-            Serial.println("[CICLO WAKEUP] Nova configuração prioritária aplicada! Enviando confirmação de estado...");
+        // 3. PRIORIDADE PÓS-ENVIO: Janela de até 1650ms (encerra em 250ms assim que receber comando)
+        //    para aguardar o HTTP POST do Central ao Mini PC (timeout máx 1500ms) e capturar comandos no mesmo ciclo!
+        if (espNowNode.aguardarPrioridadeConfiguracao(1650)) {
+            Serial.println("[CICLO WAKEUP] Nova configuração recebida via Central/Mini PC! Enviando confirmação de estado...");
             PacoteDadosSensores dadosAtualizados = montarPacoteSensores(tempoInicioMs);
             espNowNode.enviarDadosUnicast(dadosAtualizados);
             delay(100);
@@ -275,8 +275,9 @@ void loop() {
         Serial.printf("[MODO ONLINE] Chuva: %.1f%% | Bateria: %d%% | Modo: %s | Intervalo: %d min\n", 
                       dados.sensorUmidade, dados.bateriaPct, rtcModoOperacao, rtcIntervaloMin);
 
-        // Mantém janela ativa de 500ms após cada envio para receber configurações pendentes do Central
-        if (espNowNode.aguardarPrioridadeConfiguracao(500)) {
+        // Mantém janela ativa após cada envio (1650ms em LIGHT_SLEEP para cobrir o round-trip HTTP do Mini PC)
+        unsigned long janelaPosEnvio = (strcmp(rtcModoOperacao, "LIGHT_SLEEP") == 0) ? 1650 : 500;
+        if (espNowNode.aguardarPrioridadeConfiguracao(janelaPosEnvio)) {
             PacoteDadosSensores dadosConfirmacao = montarPacoteSensores(millis());
             espNowNode.enviarDadosUnicast(dadosConfirmacao);
             delay(100);

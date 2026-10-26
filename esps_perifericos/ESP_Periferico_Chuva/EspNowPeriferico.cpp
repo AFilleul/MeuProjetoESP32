@@ -150,10 +150,9 @@ bool EspNowPeriferico::aguardarPrioridadeConfiguracao(unsigned long janelaMs) {
         if (configRecebidaFlag) {
             configRecebidaFlag = false;
             recebeuAlguma = true;
-            // Estende a janela por mais 250ms após receber uma configuração para garantir
-            // que o ACK seja transmitido por completo e que pacotes adicionais sejam recebidos!
+            // Finaliza 250ms após receber a configuração para garantir entrega do ACK e pacotes seguidos
             inicio = millis();
-            if (janelaMs < 250) janelaMs = 250;
+            janelaMs = 250;
         }
         delay(10);
     }

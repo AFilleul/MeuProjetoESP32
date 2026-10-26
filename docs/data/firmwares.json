@@ -1,0 +1,1657 @@
+{
+ "schema": 1,
+ "source_commit": "eb8cf9a",
+ "kinds": [
+  "start",
+  "step",
+  "dec",
+  "io",
+  "sleep",
+  "sub"
+ ],
+ "graphs": {
+  "g-avaliacao": {
+   "title": "Avaliação resumida do workspace",
+   "direction": "LR",
+   "note": "Mapa do repositório em 2026-10-20. Laranja = núcleo de firmware. Verde = governança (3 documentos na raiz). Lilás = apoio. Clique em cada bloco para ver o papel e o estado.",
+   "nodes": [
+    {
+     "id": "ws",
+     "kind": "start",
+     "label": "Workspace\nESP32_Artur",
+     "detail": "Sistema 'Sítio Online': nós ESP32 a bateria medem o campo e enviam por ESP-NOW a um Central, que mostra tudo numa interface web."
+    },
+    {
+     "id": "nucleo",
+     "kind": "sub",
+     "label": "NÚCLEO\nfirmwares ESP32",
+     "detail": "O que sustenta a proposta técnica: protocolo, Central e nós periféricos. A interface web é onde o usuário vê e configura."
+    },
+    {
+     "id": "proto",
+     "kind": "io",
+     "label": "ProtocoloMensagens.h\n(contrato)",
+     "detail": "Define as 5 mensagens e as structs dos pacotes. Existe em 3 cópias idênticas (raiz, Base, Chuva) porque o Arduino IDE exige pasta autocontida. Regra 2 do AGENTS.md: alterou uma, copie para as três no mesmo commit."
+    },
+    {
+     "id": "central",
+     "kind": "io",
+     "label": "Central\nMeuProjetoESP32.ino",
+     "detail": "Gateway sempre ligado: EspNowCentral (rádio), DeviceManager (lista de nós), WifiManager (rede) e WebServer (API REST). Estado: funciona; configuração só em RAM; sem autenticação."
+    },
+    {
+     "id": "nos",
+     "kind": "io",
+     "label": "Nós periféricos\nChuva + Base",
+     "detail": "ESP_Periferico_Chuva (sensor MH-RD com BJT) e ESP_Periferico_Base (molde, umidade do solo). Deep Sleep, Light Sleep ou ONLINE. Estado: funcionam; bateria e temperatura ainda simuladas."
+    },
+    {
+     "id": "web",
+     "kind": "step",
+     "label": "Interface web\nweb/",
+     "detail": "HTML/JS/CSS que consome /api/status, /api/config e /api/device/delete. Tem modo simulador para estudar sem placa."
+    },
+    {
+     "id": "gov",
+     "kind": "start",
+     "label": "GOVERNANÇA\n3 documentos",
+     "detail": "Mínimo necessário para não se perder: regras, estado e histórico. Nada além disso até haver necessidade comprovada."
+    },
+    {
+     "id": "agents",
+     "kind": "step",
+     "label": "AGENTS.md\nregras",
+     "detail": "6 regras curtas e permanentes: uma mudança por vez, protocolo é sagrado, testar na placa, segredos fora do Git, explicar o porquê, sem push sem pedido. Leia antes de alterar código."
+    },
+    {
+     "id": "status",
+     "kind": "step",
+     "label": "STATUS.md\nonde estamos",
+     "detail": "Estado de cada parte, próximos passos P1–P5 (a proposta deste visualizador) e recomendação de limpeza."
+    },
+    {
+     "id": "changelog",
+     "kind": "step",
+     "label": "CHANGELOG.md\no que mudou",
+     "detail": "Uma entrada por mudança de comportamento, sempre com 'como foi verificado' na placa."
+    },
+    {
+     "id": "apoio",
+     "kind": "sub",
+     "label": "Apoio ao estudo",
+     "detail": "Material que explica o núcleo sem fazer parte dele."
+    },
+    {
+     "id": "readme",
+     "kind": "step",
+     "label": "README.md\nporta de entrada",
+     "detail": "Visão geral, arquitetura e como compilar. Recomendação: reduzir os fluxogramas Mermaid e apontar para este visualizador."
+    },
+    {
+     "id": "visual",
+     "kind": "step",
+     "label": "Este visualizador\ndocs/index.html",
+     "detail": "Mostra o sistema atual e a proposta de melhoria. Fonte única: docs/data/firmwares.json; depois de editar, rode node tools/gen_firmwares_js.mjs."
+    },
+    {
+     "id": "recom",
+     "kind": "dec",
+     "label": "recomendacoes-firmware.md\n4 riscos críticos",
+     "detail": "Canal de rádio fixo, concorrência no DeviceManager, configuração perdida no reset, sem criptografia. Viraram os passos P1–P5 do STATUS.md."
+    },
+    {
+     "id": "limpar",
+     "kind": "sleep",
+     "label": "Candidatos a remover",
+     "detail": "TecladoMatriz.* (sem uso; vive na branch com-teclado-4x4), .vscode/ (depurador de PC com caminhos de outra máquina), exemplos/ESP_Central_EspNow (duplica o Central). Detalhes em STATUS.md §4."
+    }
+   ],
+   "edges": [
+    {
+     "from": "ws",
+     "to": "nucleo"
+    },
+    {
+     "from": "ws",
+     "to": "gov"
+    },
+    {
+     "from": "ws",
+     "to": "apoio"
+    },
+    {
+     "from": "nucleo",
+     "to": "proto"
+    },
+    {
+     "from": "proto",
+     "to": "central",
+     "label": "mesmo contrato"
+    },
+    {
+     "from": "proto",
+     "to": "nos",
+     "label": "mesmo contrato"
+    },
+    {
+     "from": "central",
+     "to": "web",
+     "label": "HTTP"
+    },
+    {
+     "from": "gov",
+     "to": "agents"
+    },
+    {
+     "from": "gov",
+     "to": "status"
+    },
+    {
+     "from": "gov",
+     "to": "changelog"
+    },
+    {
+     "from": "apoio",
+     "to": "readme"
+    },
+    {
+     "from": "apoio",
+     "to": "visual"
+    },
+    {
+     "from": "apoio",
+     "to": "recom"
+    },
+    {
+     "from": "apoio",
+     "to": "limpar"
+    },
+    {
+     "from": "recom",
+     "to": "status",
+     "label": "vira P1–P5"
+    }
+   ]
+  },
+  "g-uso-atual": {
+   "title": "Uso do sistema HOJE",
+   "direction": "UD",
+   "note": "Do ponto de vista de quem instala e usa: ligar o Central, ligar os nós, ver as leituras e mudar a configuração. Amarelo tracejado = onde o sistema falha ou engana o usuário hoje.",
+   "nodes": [
+    {
+     "id": "u1",
+     "kind": "start",
+     "label": "Liga o Central",
+     "detail": "MeuProjetoESP32.ino. Tenta o roteador por 15 s; se falhar, cria a rede própria SitioOnline_ESP32 no canal 1."
+    },
+    {
+     "id": "u2",
+     "kind": "dec",
+     "label": "⚠ Roteador em canal ≠ 1?",
+     "detail": "Com roteador, o ESP-NOW passa a usar o canal do roteador, mas os nós continuam presos ao canal 1. Os nós não encontram o Central e nada avisa o usuário. Risco 1 de recomendacoes-firmware.md."
+    },
+    {
+     "id": "u3",
+     "kind": "io",
+     "label": "Central emite beacon\na cada 1,5 s",
+     "detail": "Broadcast MSG_BROADCAST_BEACON anunciando o Central. O pacote já leva o canal, mas o nó ignora esse campo."
+    },
+    {
+     "id": "u4",
+     "kind": "start",
+     "label": "Liga o nó (sensor)",
+     "detail": "Hard reset: espera o beacon por 8 s e fica 60 s em janela de pareamento, enviando dados e recebendo configuração."
+    },
+    {
+     "id": "u5",
+     "kind": "io",
+     "label": "Nó envia leitura",
+     "detail": "MSG_DADOS_SENSORES por unicast: valor do sensor, bateria e temperatura."
+    },
+    {
+     "id": "u6",
+     "kind": "dec",
+     "label": "⚠ Bateria e temperatura\nsão valores fixos",
+     "detail": "lerBateria() devolve 3980 mV sempre; temperatura 25,0 / 24,8. O usuário vê uma autonomia que não é real."
+    },
+    {
+     "id": "u7",
+     "kind": "dec",
+     "label": "⚠ Qualquer pacote cadastra\num nó novo",
+     "detail": "Sem lista de permitidos nem criptografia: outro ESP32 pode injetar leituras. Risco 4."
+    },
+    {
+     "id": "u8",
+     "kind": "sub",
+     "label": "Callback grava direto\nna lista de nós",
+     "detail": "Roda na task de Wi-Fi, ao mesmo tempo que o loop() e a API leem a mesma lista. Pode reiniciar o Central de forma intermitente. Risco 2."
+    },
+    {
+     "id": "u9",
+     "kind": "step",
+     "label": "Usuário abre a interface web",
+     "detail": "web/index.html consulta GET /api/status periodicamente e mostra nós, leituras, bateria e status ONLINE/OFFLINE."
+    },
+    {
+     "id": "u10",
+     "kind": "sub",
+     "label": "Usuário muda nome, modo\nou intervalo",
+     "detail": "POST /api/config. Sem token: qualquer pessoa na mesma rede pode alterar ou apagar nós. Risco 4."
+    },
+    {
+     "id": "u11",
+     "kind": "step",
+     "label": "Config fica pendente\nna RAM do Central",
+     "detail": "Entregue ao nó quando ele acordar e enviar a próxima leitura; o nó responde MSG_ACK_CONFIG."
+    },
+    {
+     "id": "u12",
+     "kind": "sleep",
+     "label": "Nó dorme o intervalo",
+     "detail": "Deep Sleep; acorda, lê, envia e dorme de novo. Se atrasar mais de 30 s do previsto, o Central marca OFFLINE."
+    },
+    {
+     "id": "u13",
+     "kind": "dec",
+     "label": "⚠ Central reinicia\n(queda de energia)",
+     "detail": "Toda a lista e as configurações estavam só na RAM: somem. O usuário precisa reconfigurar tudo. Risco 3."
+    }
+   ],
+   "edges": [
+    {
+     "from": "u1",
+     "to": "u2"
+    },
+    {
+     "from": "u2",
+     "to": "u3",
+     "label": "canal 1 ou AP"
+    },
+    {
+     "from": "u3",
+     "to": "u4"
+    },
+    {
+     "from": "u4",
+     "to": "u5"
+    },
+    {
+     "from": "u5",
+     "to": "u6"
+    },
+    {
+     "from": "u6",
+     "to": "u7"
+    },
+    {
+     "from": "u7",
+     "to": "u8"
+    },
+    {
+     "from": "u8",
+     "to": "u9"
+    },
+    {
+     "from": "u9",
+     "to": "u10"
+    },
+    {
+     "from": "u10",
+     "to": "u11"
+    },
+    {
+     "from": "u11",
+     "to": "u12"
+    },
+    {
+     "from": "u12",
+     "to": "u5",
+     "label": "próximo ciclo",
+     "style": "back"
+    },
+    {
+     "from": "u12",
+     "to": "u13"
+    },
+    {
+     "from": "u13",
+     "to": "u1",
+     "label": "recomeça do zero",
+     "style": "back"
+    }
+   ]
+  },
+  "g-uso-proposto": {
+   "title": "Uso do sistema PROPOSTO",
+   "direction": "UD",
+   "note": "O mesmo uso, com as melhorias P1–P5 do STATUS.md. Verde = mudança proposta. O usuário faz as mesmas ações; o que muda é que o sistema não falha em silêncio, não perde configuração e só aceita quem foi autorizado.",
+   "nodes": [
+    {
+     "id": "v1",
+     "kind": "start",
+     "label": "NOVO · Liga o Central\nrestaura nós do NVS",
+     "detail": "P2. Lista de nós e configurações gravadas na flash (Preferences). Ao ligar, tudo volta; os nós aparecem OFFLINE até o primeiro sinal."
+    },
+    {
+     "id": "v2",
+     "kind": "io",
+     "label": "Central emite beacon\ncom o canal atual",
+     "detail": "Igual a hoje, mas agora o canal informado no beacon é usado pelos nós."
+    },
+    {
+     "id": "v3",
+     "kind": "start",
+     "label": "Liga o nó (sensor)",
+     "detail": "Mesma janela de pareamento de 60 s após hard reset."
+    },
+    {
+     "id": "v4",
+     "kind": "start",
+     "label": "NOVO · Nó adota o canal\ndo beacon",
+     "detail": "P1. Grava canal e MAC do Central na memória RTC. Se o Central sumir, varre os canais 1–13 ouvindo o beacon. Funciona com qualquer roteador."
+    },
+    {
+     "id": "v5",
+     "kind": "start",
+     "label": "NOVO · Pareamento autorizado\n+ ESP-NOW criptografado",
+     "detail": "P5. Só entra nó novo durante a janela de pareamento ou que esteja na lista de permitidos; pacotes cifrados (PMK/LMK) ou assinados."
+    },
+    {
+     "id": "v6",
+     "kind": "start",
+     "label": "NOVO · Leitura real\nda bateria",
+     "detail": "P4. Divisor resistivo + ADC. A autonomia mostrada na web passa a ser verdadeira."
+    },
+    {
+     "id": "v7",
+     "kind": "start",
+     "label": "NOVO · Callback só enfileira",
+     "detail": "P3. O callback copia o pacote para uma fila do FreeRTOS e sai; o loop() aplica na lista. Uma só task mexe nos dados: fim dos reinícios intermitentes."
+    },
+    {
+     "id": "v8",
+     "kind": "step",
+     "label": "Usuário abre a interface web",
+     "detail": "Igual a hoje."
+    },
+    {
+     "id": "v9",
+     "kind": "start",
+     "label": "NOVO · Mudar config exige token",
+     "detail": "P5. POST /api/config e /api/device/delete com token definido em secrets.h; CORS restrito à origem da interface."
+    },
+    {
+     "id": "v10",
+     "kind": "start",
+     "label": "NOVO · Config gravada no NVS",
+     "detail": "P2. Grava só quando o usuário muda (não a cada leitura), para não desgastar a flash. Depois segue para o nó como hoje."
+    },
+    {
+     "id": "v11",
+     "kind": "sleep",
+     "label": "Nó dorme o intervalo",
+     "detail": "Igual a hoje."
+    },
+    {
+     "id": "v12",
+     "kind": "step",
+     "label": "Central reinicia",
+     "detail": "Volta com a lista e as configurações. O usuário não precisa fazer nada."
+    }
+   ],
+   "edges": [
+    {
+     "from": "v1",
+     "to": "v2"
+    },
+    {
+     "from": "v2",
+     "to": "v3"
+    },
+    {
+     "from": "v3",
+     "to": "v4"
+    },
+    {
+     "from": "v4",
+     "to": "v5"
+    },
+    {
+     "from": "v5",
+     "to": "v6"
+    },
+    {
+     "from": "v6",
+     "to": "v7"
+    },
+    {
+     "from": "v7",
+     "to": "v8"
+    },
+    {
+     "from": "v8",
+     "to": "v9"
+    },
+    {
+     "from": "v9",
+     "to": "v10"
+    },
+    {
+     "from": "v10",
+     "to": "v11"
+    },
+    {
+     "from": "v11",
+     "to": "v4",
+     "label": "próximo ciclo",
+     "style": "back"
+    },
+    {
+     "from": "v11",
+     "to": "v12"
+    },
+    {
+     "from": "v12",
+     "to": "v1",
+     "label": "restaura",
+     "style": "back"
+    }
+   ]
+  },
+  "g-topo-proposta": {
+   "title": "Topologia PROPOSTA",
+   "direction": "LR",
+   "note": "Compare com 'Topologia e mensagens' (hoje). Mesmos dispositivos e mensagens; muda o que protege cada ligação e onde o Central guarda o estado.",
+   "nodes": [
+    {
+     "id": "tp-chuva",
+     "kind": "io",
+     "label": "ESP_Periferico_Chuva\nbateria real (P4)",
+     "detail": "Mesmo sensor MH-RD; bateria medida por ADC."
+    },
+    {
+     "id": "tp-base",
+     "kind": "io",
+     "label": "ESP_Periferico_Base\nbateria real (P4)",
+     "detail": "Mesmo molde; bateria medida por ADC."
+    },
+    {
+     "id": "tp-central",
+     "kind": "sub",
+     "label": "Central\nfila FreeRTOS (P3)",
+     "detail": "Callbacks só enfileiram; o loop() é o único que altera a lista de nós."
+    },
+    {
+     "id": "tp-nvs",
+     "kind": "sleep",
+     "label": "NVS (flash)\nconfig persistente (P2)",
+     "detail": "Guarda id, nome, intervalo, modo, unidade, fonte e capacidade de cada nó."
+    },
+    {
+     "id": "tp-web",
+     "kind": "step",
+     "label": "Interface web\ncom token (P5)",
+     "detail": "Mesmas telas; rotas de alteração exigem token."
+    }
+   ],
+   "edges": [
+    {
+     "from": "tp-web",
+     "to": "tp-central",
+     "label": "HTTP + token"
+    },
+    {
+     "from": "tp-central",
+     "to": "tp-chuva",
+     "label": "ESP-NOW cifrado, canal do beacon",
+     "style": "both"
+    },
+    {
+     "from": "tp-central",
+     "to": "tp-base",
+     "label": "ESP-NOW cifrado, canal do beacon",
+     "style": "both"
+    },
+    {
+     "from": "tp-central",
+     "to": "tp-nvs",
+     "label": "grava ao mudar / lê no boot",
+     "style": "both"
+    }
+   ]
+  },
+  "g-capacidades": {
+   "title": "Capacidades do ESP32 usadas (e a usar) neste projeto",
+   "direction": "LR",
+   "note": "Cada bloco é um recurso do chip e o arquivo onde ele é usado. Azul = em uso hoje. Amarelo tracejado = melhoria proposta (P1–P5 do STATUS.md).",
+   "nodes": [
+    {
+     "id": "chip",
+     "kind": "start",
+     "label": "ESP32",
+     "detail": "Microcontrolador dual-core com Wi-Fi e Bluetooth, ADC, memória RTC e FreeRTOS embutido."
+    },
+    {
+     "id": "c-espnow",
+     "kind": "io",
+     "label": "ESP-NOW\nrádio sem roteador",
+     "detail": "Pacotes curtos ponto a ponto. Estude: EspNowCentral.cpp e esps_perifericos/*/EspNowPeriferico.cpp. Broadcast (beacon) para descoberta, unicast para dados."
+    },
+    {
+     "id": "c-wifi",
+     "kind": "io",
+     "label": "Wi-Fi STA + AP",
+     "detail": "Conecta ao roteador ou cria a rede SitioOnline_ESP32. Estude: WifiManager.cpp e o setup() do MeuProjetoESP32.ino."
+    },
+    {
+     "id": "c-web",
+     "kind": "sub",
+     "label": "WebServer\nAPI REST",
+     "detail": "Servidor HTTP na porta 80 com rotas /api/*. Estude: MeuProjetoESP32.ino (handleGetStatus, handlePostConfig)."
+    },
+    {
+     "id": "c-deep",
+     "kind": "sleep",
+     "label": "Deep Sleep\n+ memória RTC",
+     "detail": "Desliga quase tudo; acorda por timer e recomeça do setup(). Variáveis RTC_DATA_ATTR sobrevivem. Estude: ESP_Periferico_Chuva.ino."
+    },
+    {
+     "id": "c-light",
+     "kind": "sleep",
+     "label": "Light Sleep",
+     "detail": "Pausa a CPU mantendo a RAM; retoma de onde parou. Estude: loop() dos periféricos."
+    },
+    {
+     "id": "c-adc",
+     "kind": "io",
+     "label": "ADC + GPIO\nleitura de sensor",
+     "detail": "Conversor analógico de 12 bits (0–4095). O GPIO 14 aciona o BJT que liga o sensor só durante a leitura, contra corrosão. Estude: SensorChuvaMHRD.cpp."
+    },
+    {
+     "id": "c-millis",
+     "kind": "step",
+     "label": "millis()\nloop não bloqueante",
+     "detail": "Agenda tarefas sem delay(). Estude: loop() do Central."
+    },
+    {
+     "id": "c-canal",
+     "kind": "dec",
+     "label": "P1 · canal de rádio\ndinâmico",
+     "detail": "Próximo: nó adota beacon.canalWifi e varre canais 1–13 se perder o Central."
+    },
+    {
+     "id": "c-nvs",
+     "kind": "dec",
+     "label": "P2 · NVS / Preferences\nmemória que não apaga",
+     "detail": "Próximo: gravar a configuração dos nós na flash do Central para sobreviver a reset."
+    },
+    {
+     "id": "c-rtos",
+     "kind": "dec",
+     "label": "P3 · FreeRTOS\nfila entre tasks",
+     "detail": "Próximo: callback só copia o pacote para uma fila (xQueueSend); o loop() processa."
+    },
+    {
+     "id": "c-bat",
+     "kind": "dec",
+     "label": "P4 · ADC real\nda bateria",
+     "detail": "Próximo: divisor resistivo + leitura ADC no lugar do valor fixo 3980 mV."
+    },
+    {
+     "id": "c-sec",
+     "kind": "dec",
+     "label": "P5 · Segurança\ncriptografia + token",
+     "detail": "Próximo: PMK/LMK no ESP-NOW e token nas rotas POST."
+    }
+   ],
+   "edges": [
+    {
+     "from": "chip",
+     "to": "c-espnow"
+    },
+    {
+     "from": "chip",
+     "to": "c-wifi"
+    },
+    {
+     "from": "chip",
+     "to": "c-deep"
+    },
+    {
+     "from": "chip",
+     "to": "c-adc"
+    },
+    {
+     "from": "chip",
+     "to": "c-millis"
+    },
+    {
+     "from": "c-wifi",
+     "to": "c-web"
+    },
+    {
+     "from": "c-deep",
+     "to": "c-light",
+     "label": "variante"
+    },
+    {
+     "from": "c-espnow",
+     "to": "c-canal",
+     "label": "evolui"
+    },
+    {
+     "from": "c-millis",
+     "to": "c-rtos",
+     "label": "evolui"
+    },
+    {
+     "from": "c-web",
+     "to": "c-nvs",
+     "label": "evolui"
+    },
+    {
+     "from": "c-adc",
+     "to": "c-bat",
+     "label": "evolui"
+    },
+    {
+     "from": "c-web",
+     "to": "c-sec",
+     "label": "evolui"
+    },
+    {
+     "from": "c-espnow",
+     "to": "c-sec"
+    }
+   ]
+  },
+  "g-topo": {
+   "title": "Topologia e mensagens",
+   "direction": "LR",
+   "note": "Conceito: ESP-NOW é um rádio ponto a ponto da Espressif, sem roteador, até 250 bytes por pacote. Todo pacote começa com o campo 'tipo' definido em ProtocoloMensagens.h, o contrato entre os firmwares. Tipos: 0x01 BROADCAST_BEACON, 0x02 DADOS_SENSORES, 0x03 ACK_CONFIRMACAO, 0x04 CONFIG_PARAMETROS, 0x05 ACK_CONFIG.",
+   "nodes": [
+    {
+     "id": "chuva",
+     "kind": "io",
+     "label": "ESP_Periferico_Chuva\nsensor MH-RD",
+     "detail": "Nó edge a bateria. Mede intensidade de chuva e envia por ESP-NOW unicast. Sketch: esps_perifericos/ESP_Periferico_Chuva/ESP_Periferico_Chuva.ino."
+    },
+    {
+     "id": "base",
+     "kind": "io",
+     "label": "ESP_Periferico_Base\numidade do solo",
+     "detail": "Template de nó edge. Lê umidade do solo (ADC, 4095 seco a 1200 encharcado) e envia por ESP-NOW unicast. Sketch: esps_perifericos/ESP_Periferico_Base/ESP_Periferico_Base.ino."
+    },
+    {
+     "id": "central",
+     "kind": "sub",
+     "label": "Gateway / Central\nMeuProjetoESP32.ino",
+     "detail": "Recebe telemetria, mantém a lista de dispositivos (DeviceManager), despacha configurações e serve a API REST na porta 80."
+    },
+    {
+     "id": "web",
+     "kind": "step",
+     "label": "Interface web\n(computador)",
+     "detail": "Pasta web/. Consulta /api/status e envia /api/config e /api/device/delete. Fora do escopo desta página."
+    }
+   ],
+   "edges": [
+    {
+     "from": "web",
+     "to": "central",
+     "label": "HTTP /api/*"
+    },
+    {
+     "from": "central",
+     "to": "chuva",
+     "label": "beacon, config ⇄ dados, ACK",
+     "style": "both"
+    },
+    {
+     "from": "central",
+     "to": "base",
+     "label": "beacon, config ⇄ dados, ACK",
+     "style": "both"
+    }
+   ]
+  },
+  "g-edge-boot": {
+   "title": "Nó edge: boot e ciclo de sono",
+   "direction": "UD",
+   "nodes": [
+    {
+     "id": "boot",
+     "kind": "start",
+     "label": "Boot ou acorda do Deep Sleep",
+     "detail": "Ponto de entrada de setup(). Cada despertar do Deep Sleep reinicia o programa; só as variáveis RTC_DATA_ATTR sobrevivem."
+    },
+    {
+     "id": "init",
+     "kind": "step",
+     "label": "Serial 115200\nsensor.begin() (só Chuva)",
+     "detail": "No Chuva, sensorChuva.begin() põe o BJT NPN em corte imediatamente para proteger as trilhas do sensor. Chuva .ino:127."
+    },
+    {
+     "id": "radio",
+     "kind": "dec",
+     "label": "ESP-NOW iniciou?",
+     "detail": "espNowNode.iniciar(ESPNOW_WIFI_CHANNEL). Chuva .ino:138."
+    },
+    {
+     "id": "safe",
+     "kind": "sleep",
+     "label": "Deep Sleep de segurança",
+     "detail": "Se o rádio falhar, dorme pelo intervalo atual em vez de ficar ligado gastando bateria."
+    },
+    {
+     "id": "cb",
+     "kind": "step",
+     "label": "Registra callback de configuração\nRestaura MAC do Central da RTC",
+     "detail": "definirCallbackConfiguracao(aplicarNovaConfiguracao); se rtcCentralConhecido, restaurarCentralMac(). Chuva .ino:145-150."
+    },
+    {
+     "id": "reset",
+     "kind": "dec",
+     "label": "Hard reset?",
+     "detail": "EspNowPeriferico::isHardReset(): verdadeiro ao ligar na energia ou apertar o botão de reset; falso ao acordar do timer do Deep Sleep. Chuva .ino:130."
+    },
+    {
+     "id": "a1",
+     "kind": "io",
+     "label": "bootCount = 1\nAguarda beacon do Central (8 s)",
+     "detail": "Caso A. Descobre o MAC do Central pelo beacon e o guarda na RTC. Chuva .ino:158-166."
+    },
+    {
+     "id": "a2",
+     "kind": "io",
+     "label": "Janela de pareamento 60 s\nenvia telemetria e recebe config",
+     "detail": "executarJanelaPareamento(60000, montarPacote, aplicarNovaConfiguracao). Nesse minuto o nó fica online para o Central poder configurá-lo. Chuva .ino:168-172."
+    },
+    {
+     "id": "a3",
+     "kind": "dec",
+     "label": "Modo = ONLINE?",
+     "detail": "Chuva .ino:181."
+    },
+    {
+     "id": "a4",
+     "kind": "step",
+     "label": "Escuta configuração 250 ms",
+     "detail": "aguardarPrioridadeConfiguracao(250) antes de dormir. Chuva .ino:185."
+    },
+    {
+     "id": "b1",
+     "kind": "step",
+     "label": "bootCount++",
+     "detail": "Caso B: despertar programado. Chuva .ino:196-197."
+    },
+    {
+     "id": "b2",
+     "kind": "dec",
+     "label": "Central conhecido?\nSe não, beacon por 4 s",
+     "detail": "Usa o MAC salvo na RTC; se não houver, aguarda beacon por até 4 s. Chuva .ino:199-202."
+    },
+    {
+     "id": "b3",
+     "kind": "io",
+     "label": "Escuta configuração 150 ms",
+     "detail": "Caso o Central já esteja transmitindo uma configuração pendente. Chuva .ino:209."
+    },
+    {
+     "id": "b4",
+     "kind": "io",
+     "label": "Lê sensor e bateria\nEnvia telemetria unicast",
+     "detail": "montarPacoteSensores() + enviarDadosUnicast(). Chuva: liga o BJT por 50 ms e faz média de 8 amostras ADC. Base: liga PIN_SENSOR_VCC (se definido), espera 30 ms e lê o ADC. Chuva .ino:212-213."
+    },
+    {
+     "id": "b5",
+     "kind": "dec",
+     "label": "Config recebida em 600 ms?",
+     "detail": "aguardarPrioridadeConfiguracao(600), auto-estendida se chegar pacote. Chuva .ino:217."
+    },
+    {
+     "id": "b6",
+     "kind": "io",
+     "label": "Mede de novo e reenvia\ncom o estado novo",
+     "detail": "Confirma ao Central os novos parâmetros. Chuva .ino:218-221."
+    },
+    {
+     "id": "b7",
+     "kind": "step",
+     "label": "Central indisponível neste ciclo",
+     "detail": "Sem Central, não envia nada e volta a dormir. Chuva .ino:224."
+    },
+    {
+     "id": "b8",
+     "kind": "step",
+     "label": "Acumula uptime",
+     "detail": "tempoUptimeAcumuladoSegundos += tempo do ciclo + 1. Chuva .ino:227."
+    },
+    {
+     "id": "b9",
+     "kind": "dec",
+     "label": "Modo = ONLINE?",
+     "detail": "Chuva .ino:229."
+    },
+    {
+     "id": "loopA",
+     "kind": "sub",
+     "label": "Segue para loop()\n(ver grafo 2)",
+     "detail": "Modo ONLINE contínuo: o nó não dorme."
+    },
+    {
+     "id": "sleepA",
+     "kind": "sleep",
+     "label": "entrarDeepSleep(rtcIntervaloMin)",
+     "detail": "Desliga CPU e rádio e acorda pelo timer RTC após rtcIntervaloMin minutos."
+    },
+    {
+     "id": "loopB",
+     "kind": "sub",
+     "label": "Segue para loop()\n(ver grafo 2)",
+     "detail": "Modo ONLINE contínuo: o nó não dorme."
+    },
+    {
+     "id": "sleepB",
+     "kind": "sleep",
+     "label": "entrarDeepSleep(rtcIntervaloMin)",
+     "detail": "Desliga CPU e rádio e acorda pelo timer RTC após rtcIntervaloMin minutos."
+    },
+    {
+     "id": "retA",
+     "kind": "start",
+     "label": "↻ acorda pelo timer\nvolta ao Boot",
+     "detail": "O Deep Sleep reinicia o programa: o fluxo recomeça em setup()."
+    },
+    {
+     "id": "retB",
+     "kind": "start",
+     "label": "↻ acorda pelo timer\nvolta ao Boot",
+     "detail": "O Deep Sleep reinicia o programa: o fluxo recomeça em setup()."
+    },
+    {
+     "id": "retS",
+     "kind": "start",
+     "label": "↻ acorda pelo timer\nvolta ao Boot",
+     "detail": "O Deep Sleep reinicia o programa: o fluxo recomeça em setup()."
+    }
+   ],
+   "edges": [
+    {
+     "from": "boot",
+     "to": "init"
+    },
+    {
+     "from": "init",
+     "to": "radio"
+    },
+    {
+     "from": "radio",
+     "to": "safe",
+     "label": "não"
+    },
+    {
+     "from": "radio",
+     "to": "cb",
+     "label": "sim"
+    },
+    {
+     "from": "cb",
+     "to": "reset"
+    },
+    {
+     "from": "reset",
+     "to": "a1",
+     "label": "sim"
+    },
+    {
+     "from": "reset",
+     "to": "b1",
+     "label": "não"
+    },
+    {
+     "from": "a1",
+     "to": "a2"
+    },
+    {
+     "from": "a2",
+     "to": "a3"
+    },
+    {
+     "from": "a3",
+     "to": "loopA",
+     "label": "sim"
+    },
+    {
+     "from": "a3",
+     "to": "a4",
+     "label": "não"
+    },
+    {
+     "from": "a4",
+     "to": "sleepA"
+    },
+    {
+     "from": "sleepA",
+     "to": "retA"
+    },
+    {
+     "from": "b1",
+     "to": "b2"
+    },
+    {
+     "from": "b2",
+     "to": "b3",
+     "label": "sim"
+    },
+    {
+     "from": "b2",
+     "to": "b7",
+     "label": "não"
+    },
+    {
+     "from": "b3",
+     "to": "b4"
+    },
+    {
+     "from": "b4",
+     "to": "b5"
+    },
+    {
+     "from": "b5",
+     "to": "b6",
+     "label": "sim"
+    },
+    {
+     "from": "b5",
+     "to": "b8",
+     "label": "não"
+    },
+    {
+     "from": "b6",
+     "to": "b8"
+    },
+    {
+     "from": "b7",
+     "to": "b8"
+    },
+    {
+     "from": "b8",
+     "to": "b9"
+    },
+    {
+     "from": "b9",
+     "to": "loopB",
+     "label": "sim"
+    },
+    {
+     "from": "b9",
+     "to": "sleepB",
+     "label": "não"
+    },
+    {
+     "from": "sleepB",
+     "to": "retB"
+    },
+    {
+     "from": "safe",
+     "to": "retS"
+    }
+   ],
+   "note": "Conceito: no Deep Sleep a CPU e a RAM desligam; ao acordar, o programa recomeça do setup(). Só as variáveis marcadas RTC_DATA_ATTR (memória RTC, 8 KB) sobrevivem. Por isso o nó guarda ali o MAC do Central, o intervalo e o modo. Exercício: siga o caminho 'despertar programado' e conte quantos ms o rádio fica ligado."
+  },
+  "g-edge-loop": {
+   "title": "Nó edge: loop() ONLINE e Light Sleep",
+   "direction": "UD",
+   "nodes": [
+    {
+     "id": "l0",
+     "kind": "start",
+     "label": "loop()",
+     "detail": "Executado repetidamente nos modos ONLINE e LIGHT_SLEEP. Chuva .ino:244."
+    },
+    {
+     "id": "l1",
+     "kind": "io",
+     "label": "Central desconhecido?\nbeacon por 2 s",
+     "detail": "Salva o MAC na RTC quando descobre. Chuva .ino:247-252."
+    },
+    {
+     "id": "l2",
+     "kind": "io",
+     "label": "Escuta configuração 50 ms",
+     "detail": "PRIORIDADE MÁXIMA: processa configurações antes de enviar. Chuva .ino:255."
+    },
+    {
+     "id": "l3",
+     "kind": "dec",
+     "label": "Aplicou nova configuração?",
+     "detail": ""
+    },
+    {
+     "id": "l4",
+     "kind": "io",
+     "label": "Envia telemetria de confirmação\ndelay 100 ms",
+     "detail": "Confirma o novo estado ao Central e zera o cronômetro de envio. Chuva .ino:256-260."
+    },
+    {
+     "id": "l5",
+     "kind": "dec",
+     "label": "Intervalo vencido\nou primeiro envio?",
+     "detail": "intervaloMs = rtcIntervaloMin × 60000 (5000 ms se for 0). Chuva .ino:263-268."
+    },
+    {
+     "id": "l6",
+     "kind": "io",
+     "label": "Escuta config 80 ms\nLê sensor e envia\nJanela de 500 ms",
+     "detail": "Depois de cada envio mantém 500 ms de escuta; se chegar configuração, mede e reenvia. Chuva .ino:268-283."
+    },
+    {
+     "id": "l7",
+     "kind": "dec",
+     "label": "Modo atual?",
+     "detail": "Chuva .ino:287-297."
+    },
+    {
+     "id": "l8",
+     "kind": "sleep",
+     "label": "DEEP_SLEEP: espera 200 ms\ne entra em Deep Sleep",
+     "detail": "Dá tempo de estabilizar o ACK antes de dormir. A saída é o ciclo do grafo 1."
+    },
+    {
+     "id": "l9",
+     "kind": "sleep",
+     "label": "LIGHT_SLEEP: timer + esp_light_sleep_start()\nultimoEnvio = 0",
+     "detail": "Suspende a CPU mantendo a RAM; ao acordar força envio na próxima iteração. Chuva .ino:291-296."
+    },
+    {
+     "id": "l10",
+     "kind": "step",
+     "label": "ONLINE: delay 20 ms",
+     "detail": "Chuva .ino:299."
+    },
+    {
+     "id": "l11",
+     "kind": "start",
+     "label": "↻ volta ao início\nde loop()",
+     "detail": "loop() é chamado de novo pelo Arduino."
+    }
+   ],
+   "edges": [
+    {
+     "from": "l0",
+     "to": "l1"
+    },
+    {
+     "from": "l1",
+     "to": "l2"
+    },
+    {
+     "from": "l2",
+     "to": "l3"
+    },
+    {
+     "from": "l3",
+     "to": "l4",
+     "label": "sim"
+    },
+    {
+     "from": "l3",
+     "to": "l5",
+     "label": "não"
+    },
+    {
+     "from": "l4",
+     "to": "l5"
+    },
+    {
+     "from": "l5",
+     "to": "l6",
+     "label": "sim"
+    },
+    {
+     "from": "l5",
+     "to": "l7",
+     "label": "não"
+    },
+    {
+     "from": "l6",
+     "to": "l7"
+    },
+    {
+     "from": "l7",
+     "to": "l8",
+     "label": "DEEP_SLEEP"
+    },
+    {
+     "from": "l7",
+     "to": "l9",
+     "label": "LIGHT_SLEEP"
+    },
+    {
+     "from": "l7",
+     "to": "l10",
+     "label": "ONLINE"
+    },
+    {
+     "from": "l9",
+     "to": "l11"
+    },
+    {
+     "from": "l10",
+     "to": "l11"
+    }
+   ],
+   "note": "Conceito: o Light Sleep pausa a CPU mas mantém a RAM; ao acordar, o código continua da linha seguinte (não volta ao setup). Compare com o Deep Sleep: mais rápido para retomar, porém gasta mais energia dormindo."
+  },
+  "g-edge-cfg": {
+   "title": "Nó edge: callback de configuração recebida",
+   "direction": "UD",
+   "nodes": [
+    {
+     "id": "c0",
+     "kind": "start",
+     "label": "Pacote MSG_CONFIG_PARAMETROS\nchega do Central",
+     "detail": "Callback aplicarNovaConfiguracao(cfg), definido por definirCallbackConfiguracao(). Chuva .ino:79."
+    },
+    {
+     "id": "c1",
+     "kind": "step",
+     "label": "Salva MAC do Central na RTC",
+     "detail": "Se o Central já foi descoberto. Chuva .ino:84-87."
+    },
+    {
+     "id": "c2",
+     "kind": "dec",
+     "label": "novoIntervaloMin > 0?",
+     "detail": "Se sim, atualiza rtcIntervaloMin. Chuva .ino:89-92."
+    },
+    {
+     "id": "c3",
+     "kind": "dec",
+     "label": "novoModo não vazio?",
+     "detail": "Normaliza \"DEEP SLEEP\"/\"DEEP_SLEEP\", \"LIGHT SLEEP\"/\"LIGHT_SLEEP\" e \"ONLINE\" para rtcModoOperacao. Outros valores são copiados como vêm. Chuva .ino:94-106."
+    },
+    {
+     "id": "c4",
+     "kind": "dec",
+     "label": "novoNome não vazio?",
+     "detail": "Se sim, atualiza rtcNodeName. Chuva .ino:108-112."
+    },
+    {
+     "id": "c5",
+     "kind": "io",
+     "label": "enviarAckConfiguracao(NODE_ID, true,\nintervalo, modo)",
+     "detail": "PacoteAckConfig (MSG_ACK_CONFIG) de volta ao Central com o que foi efetivamente aplicado. Chuva .ino:116."
+    }
+   ],
+   "edges": [
+    {
+     "from": "c0",
+     "to": "c1"
+    },
+    {
+     "from": "c1",
+     "to": "c2"
+    },
+    {
+     "from": "c2",
+     "to": "c3",
+     "label": "sim ou não"
+    },
+    {
+     "from": "c3",
+     "to": "c4",
+     "label": "sim ou não"
+    },
+    {
+     "from": "c4",
+     "to": "c5",
+     "label": "sim ou não"
+    }
+   ],
+   "note": "Conceito: callback é uma função que você entrega à biblioteca para ela chamar quando um evento acontece (aqui, chegou configuração). Ela roda na task de Wi-Fi, não no loop(): deve ser curta e não bloquear."
+  },
+  "g-gw-setup": {
+   "title": "Gateway: inicialização",
+   "direction": "UD",
+   "nodes": [
+    {
+     "id": "s0",
+     "kind": "start",
+     "label": "Boot",
+     "detail": "setup() em MeuProjetoESP32.ino:249."
+    },
+    {
+     "id": "s1",
+     "kind": "step",
+     "label": "Serial 115200",
+     "detail": ""
+    },
+    {
+     "id": "s2",
+     "kind": "io",
+     "label": "wifiManager.connect(15 s)",
+     "detail": "Usa WIFI_SSID e WIFI_PASSWORD de secrets.h. .ino:260."
+    },
+    {
+     "id": "s3",
+     "kind": "dec",
+     "label": "Wi-Fi conectado?",
+     "detail": ".ino:262."
+    },
+    {
+     "id": "s4",
+     "kind": "step",
+     "label": "Imprime o IP\npara colar na interface web",
+     "detail": ".ino:263-270."
+    },
+    {
+     "id": "s5",
+     "kind": "io",
+     "label": "WIFI_AP_STA + softAP\nSitioOnline_ESP32 / 12345678\nno canal do ESP-NOW",
+     "detail": "Fallback quando o roteador não responde. IP do AP: 192.168.4.1. .ino:273-281."
+    },
+    {
+     "id": "s6",
+     "kind": "io",
+     "label": "espNowCentral.iniciar(canal, false)",
+     "detail": ".ino:285."
+    },
+    {
+     "id": "s7",
+     "kind": "sub",
+     "label": "Registra callbacks ESP-NOW\n(telemetria e ACK de config)",
+     "detail": "Ver grafo 3. .ino:288 e 317."
+    },
+    {
+     "id": "s8",
+     "kind": "sub",
+     "label": "Registra rotas REST\nserver.begin()",
+     "detail": "Ver grafo 4. Rotas /api/status, /api/config e /api/device/delete, com OPTIONS para CORS. .ino:336-343."
+    },
+    {
+     "id": "s9",
+     "kind": "step",
+     "label": "Entra em loop()",
+     "detail": "Ver grafo 2."
+    }
+   ],
+   "edges": [
+    {
+     "from": "s0",
+     "to": "s1"
+    },
+    {
+     "from": "s1",
+     "to": "s2"
+    },
+    {
+     "from": "s2",
+     "to": "s3"
+    },
+    {
+     "from": "s3",
+     "to": "s4",
+     "label": "sim"
+    },
+    {
+     "from": "s3",
+     "to": "s5",
+     "label": "não"
+    },
+    {
+     "from": "s4",
+     "to": "s6"
+    },
+    {
+     "from": "s5",
+     "to": "s6"
+    },
+    {
+     "from": "s6",
+     "to": "s7"
+    },
+    {
+     "from": "s7",
+     "to": "s8"
+    },
+    {
+     "from": "s8",
+     "to": "s9"
+    }
+   ],
+   "note": "Conceito: o ESP32 pode ser estação Wi-Fi (STA, conecta ao roteador) e ponto de acesso (AP) ao mesmo tempo (WIFI_AP_STA). Atenção: o ESP-NOW usa o mesmo rádio e o mesmo canal do Wi-Fi; esse é o risco P1 do STATUS.md."
+  },
+  "g-gw-loop": {
+   "title": "Gateway: loop()",
+   "direction": "UD",
+   "nodes": [
+    {
+     "id": "p0",
+     "kind": "start",
+     "label": "loop()",
+     "detail": ".ino:351."
+    },
+    {
+     "id": "p1",
+     "kind": "sub",
+     "label": "A cada passada:\nserver.handleClient()",
+     "detail": "Atende as requisições HTTP da interface web. .ino:353."
+    },
+    {
+     "id": "p2",
+     "kind": "io",
+     "label": "A cada 250 ms: para cada nó com config pendente,\nMAC conhecido e visto há menos de 15 s,\nreenvia a configuração (mín. 450 ms entre tentativas)",
+     "detail": "Repete até receber o ACK do nó. Só funciona enquanto o nó está acordado. .ino:356-371."
+    },
+    {
+     "id": "p3",
+     "kind": "io",
+     "label": "A cada 1,5 s:\nenviarBroadcastBeacon(\"CENTRAL_SITIO\")",
+     "detail": "Permite que os nós descubram o Central ao acordar. .ino:375-378."
+    },
+    {
+     "id": "p4",
+     "kind": "step",
+     "label": "A cada passada:\nwifiManager.handleReconnect()",
+     "detail": "Reconexão automática ao Wi-Fi. .ino:381."
+    },
+    {
+     "id": "p5",
+     "kind": "step",
+     "label": "A cada 2 s:\ncheckScheduleTimeout(30 s)",
+     "detail": "Marca como OFFLINE o nó que não enviou sinal no horário previsto, com 30 s de tolerância. .ino:384-388."
+    },
+    {
+     "id": "p6",
+     "kind": "step",
+     "label": "delay 10 ms",
+     "detail": ".ino:390."
+    },
+    {
+     "id": "p7",
+     "kind": "start",
+     "label": "↻ volta ao início\nde loop()",
+     "detail": "loop() é chamado de novo pelo Arduino."
+    }
+   ],
+   "edges": [
+    {
+     "from": "p0",
+     "to": "p1"
+    },
+    {
+     "from": "p1",
+     "to": "p2"
+    },
+    {
+     "from": "p2",
+     "to": "p3"
+    },
+    {
+     "from": "p3",
+     "to": "p4"
+    },
+    {
+     "from": "p4",
+     "to": "p5"
+    },
+    {
+     "from": "p5",
+     "to": "p6"
+    },
+    {
+     "from": "p6",
+     "to": "p7"
+    }
+   ],
+   "note": "Conceito: loop cooperativo com millis(). Em vez de delay(), cada tarefa confere se 'já passou o tempo dela'. Assim o Central atende HTTP, reenvia configurações e emite beacon sem travar."
+  },
+  "g-gw-cb": {
+   "title": "Gateway: callbacks ESP-NOW",
+   "direction": "UD",
+   "nodes": [
+    {
+     "id": "t0",
+     "kind": "start",
+     "label": "Telemetria recebida\n(MSG_DADOS_SENSORES)",
+     "detail": "Callback registrado por definirCallbackRecepcao(). .ino:288."
+    },
+    {
+     "id": "t1",
+     "kind": "dec",
+     "label": "Nó novo?",
+     "detail": ".ino:296."
+    },
+    {
+     "id": "t2",
+     "kind": "step",
+     "label": "registerDevice()",
+     "detail": "Cadastra o nó no DeviceManager com o MAC em texto. .ino:297."
+    },
+    {
+     "id": "t3",
+     "kind": "step",
+     "label": "setDeviceMac()\nupdateTelemetry()",
+     "detail": "Guarda o MAC e atualiza valor, bateria, modo e uptime sem sobrescrever o que o usuário configurou. .ino:299-303."
+    },
+    {
+     "id": "t4",
+     "kind": "dec",
+     "label": "Config pendente\nou divergente?",
+     "detail": "deviceManager.getPendingConfig(). .ino:308."
+    },
+    {
+     "id": "t5",
+     "kind": "io",
+     "label": "enviarConfiguracao() imediato",
+     "detail": "PRIORIDADE 1: o nó acabou de acordar, então despacha na hora. .ino:309-312."
+    },
+    {
+     "id": "t6",
+     "kind": "step",
+     "label": "Fim",
+     "detail": ""
+    },
+    {
+     "id": "k0",
+     "kind": "start",
+     "label": "ACK de config recebido\n(MSG_ACK_CONFIG)",
+     "detail": "Callback registrado por definirCallbackAckConfig(). .ino:317."
+    },
+    {
+     "id": "k1",
+     "kind": "dec",
+     "label": "sucesso?",
+     "detail": ".ino:320."
+    },
+    {
+     "id": "k2",
+     "kind": "step",
+     "label": "Atualiza intervalo e modo exibidos\nse o usuário não fixou valor",
+     "detail": "Respeita hasUserInterval e hasUserMode. .ino:322-329."
+    },
+    {
+     "id": "k3",
+     "kind": "step",
+     "label": "clearPendingConfig()\nnotificação \"sincronizada\"",
+     "detail": ".ino:330-331."
+    },
+    {
+     "id": "k4",
+     "kind": "step",
+     "label": "Mantém a configuração pendente",
+     "detail": "Será reenviada pelo loop()."
+    }
+   ],
+   "edges": [
+    {
+     "from": "t0",
+     "to": "t1"
+    },
+    {
+     "from": "t1",
+     "to": "t2",
+     "label": "sim"
+    },
+    {
+     "from": "t1",
+     "to": "t3",
+     "label": "não"
+    },
+    {
+     "from": "t2",
+     "to": "t3"
+    },
+    {
+     "from": "t3",
+     "to": "t4"
+    },
+    {
+     "from": "t4",
+     "to": "t5",
+     "label": "sim"
+    },
+    {
+     "from": "t4",
+     "to": "t6",
+     "label": "não"
+    },
+    {
+     "from": "t5",
+     "to": "t6"
+    },
+    {
+     "from": "k0",
+     "to": "k1"
+    },
+    {
+     "from": "k1",
+     "to": "k2",
+     "label": "sim"
+    },
+    {
+     "from": "k1",
+     "to": "k4",
+     "label": "não"
+    },
+    {
+     "from": "k2",
+     "to": "k3"
+    }
+   ],
+   "note": "Conceito: estes callbacks rodam em outra task do FreeRTOS, ao mesmo tempo que o loop(). Mexer na mesma lista dos dois lados sem proteção é o risco P3 do STATUS.md (fila ou mutex)."
+  },
+  "g-gw-api": {
+   "title": "Gateway: API REST",
+   "direction": "LR",
+   "nodes": [
+    {
+     "id": "r0",
+     "kind": "start",
+     "label": "Interface web",
+     "detail": "Requisições com CORS liberado (Access-Control-Allow-Origin: *)."
+    },
+    {
+     "id": "r1",
+     "kind": "sub",
+     "label": "GET /api/status",
+     "detail": "Devolve a lista de nós (conectividade, modo, último sinal, valor, bateria, fonte, capacidade, uptime, config pendente), notificações e o cronograma da janela de recepção (ciclo 60 s, janela 10 s, informativo). .ino:44."
+    },
+    {
+     "id": "r2",
+     "kind": "sub",
+     "label": "POST /api/config",
+     "detail": "Corpo JSON com espId, field e value. .ino:143."
+    },
+    {
+     "id": "r3",
+     "kind": "sub",
+     "label": "POST /api/device/delete",
+     "detail": "Corpo JSON com id; chama removeDevice(). .ino:224."
+    },
+    {
+     "id": "r4",
+     "kind": "step",
+     "label": "unit, powerSource, batteryCapacity",
+     "detail": "Ficam só no Central (exibição e autonomia). Resposta \"sent\". .ino:162-179."
+    },
+    {
+     "id": "r5",
+     "kind": "step",
+     "label": "interval, mode, name",
+     "detail": "queueConfig() grava na fila prioritária. .ino:186-195."
+    },
+    {
+     "id": "r6",
+     "kind": "dec",
+     "label": "MAC do nó conhecido?",
+     "detail": ".ino:200."
+    },
+    {
+     "id": "r7",
+     "kind": "io",
+     "label": "enviarConfiguracao() via ESP-NOW\nresposta \"sent\"",
+     "detail": ".ino:203-209."
+    },
+    {
+     "id": "r8",
+     "kind": "step",
+     "label": "Fica na fila\nresposta \"queued\"",
+     "detail": "Nó em repouso: será enviada quando ele acordar (callback de telemetria ou retry do loop). .ino:213-214."
+    },
+    {
+     "id": "r9",
+     "kind": "step",
+     "label": "removeDevice(id)",
+     "detail": ".ino:233."
+    }
+   ],
+   "edges": [
+    {
+     "from": "r0",
+     "to": "r1"
+    },
+    {
+     "from": "r0",
+     "to": "r2"
+    },
+    {
+     "from": "r0",
+     "to": "r3"
+    },
+    {
+     "from": "r2",
+     "to": "r4",
+     "label": "campos locais"
+    },
+    {
+     "from": "r2",
+     "to": "r5",
+     "label": "campos do nó"
+    },
+    {
+     "from": "r5",
+     "to": "r6"
+    },
+    {
+     "from": "r6",
+     "to": "r7",
+     "label": "sim"
+    },
+    {
+     "from": "r6",
+     "to": "r8",
+     "label": "não"
+    },
+    {
+     "from": "r3",
+     "to": "r9"
+    }
+   ],
+   "note": "Conceito: API REST é um 'cardápio' de URLs que a interface web chama (GET lê, POST altera). O ESP32 serve isso com a biblioteca WebServer na porta 80. Hoje sem token: risco P5 do STATUS.md."
+  }
+ },
+ "governance_date": "2026-10-20"
+}

@@ -16,6 +16,7 @@
 O **visualizador de fluxos** (`docs/abrir-firmwares.bat` → `docs/index.html`) mostra o sistema hoje e a proposta de
 melhoria (P1–P5), além do fluxo de cada firmware. A fonte é `docs/data/firmwares.json`. Depois de mudar o
 comportamento de um firmware, atualize o JSON e rode `node tools/gen_firmwares_js.mjs`.
+Na branch `com-mini-pc`, a página `docs/index-poc.html` (mesmo motor e mesma fonte) mostra o plano da prova de conceito.
 O `README.md` é a porta de entrada, com a arquitetura resumida e o link para o visualizador. Não criar outros documentos de
 controle sem necessidade comprovada.
 
@@ -25,6 +26,9 @@ controle sem necessidade comprovada.
 2. **Central** — `MeuProjetoESP32.ino`, `EspNowCentral.*`, `DeviceManager.*`, `WifiManager.*`.
 3. **Nós periféricos** — `esps_perifericos/ESP_Periferico_Chuva/` (concreto) e `ESP_Periferico_Base/` (molde).
 4. **Interface web** — `web/` (consome `/api/status`, `/api/config`, `/api/device/delete`).
+
+Na branch `com-mini-pc` (prova de conceito), vale o **núcleo operacional** marcado nos fluxos: `web/` e `ESP_Periferico_Base/`
+ficam fora dele, porque a interface não tem servidor nesta branch e a prova usa só o nó de chuva.
 
 Todo o resto é apoio. Se um arquivo não serve a um desses quatro, ele é candidato a sair (ver `STATUS.md` §4).
 

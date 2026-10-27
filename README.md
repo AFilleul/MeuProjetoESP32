@@ -3,6 +3,8 @@
 Monitoramento agrícola com ESP32 usando **ESP-NOW** (sem roteador entre os nós) e uma **API REST + interface web** no Central.
 
 > **Fluxos interativos:** abra [`docs/index.html`](docs/index.html) (publicado em https://br-tavares.github.io/MeuProjetoESP32/) no navegador para ver os grafos de cada firmware (vis.js, funciona offline). Clique em um bloco para ver o que faz e a linha do código. Os diagramas Mermaid abaixo são a versão renderizada pelo GitHub.
+>
+> **Prova de conceito (branch `com-mini-pc`):** o plano de trabalho atual, com o que é núcleo e o que é supérfluo no firmware, está em [`docs/index-poc.html`](docs/index-poc.html). Os Mermaid abaixo ainda descrevem o Central da `main`, com servidor web.
 
 ### Abrindo e atualizando os fluxos
 

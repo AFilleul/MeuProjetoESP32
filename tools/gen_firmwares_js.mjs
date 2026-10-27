@@ -23,12 +23,18 @@ function validate(data) {
   for (const [gid, g] of Object.entries(graphs)) {
     const ids = (g.nodes ?? []).map((n) => n.id);
     if (new Set(ids).size !== ids.length) errs.push(`${gid}: ids de nó repetidos`);
-    for (const n of g.nodes ?? [])
+    for (const n of g.nodes ?? []) {
       if (!kinds.has(n.kind)) errs.push(`${gid}: nó '${n.id}' com kind inválido '${n.kind}'`);
+      // role (opcional): papel do bloco na prova de conceito.
+      if (n.role !== undefined && !["nucleo", "superfluo"].includes(n.role))
+        errs.push(`${gid}: nó '${n.id}' com role inválido '${n.role}' (use nucleo ou superfluo)`);
+    }
     for (const e of g.edges ?? [])
       for (const end of ["from", "to"])
         if (!ids.includes(e[end])) errs.push(`${gid}: aresta aponta para nó inexistente '${e[end]}'`);
     if (!["UD", "LR"].includes(g.direction ?? "UD")) errs.push(`${gid}: direction deve ser UD ou LR`);
+    // page (opcional): "poc" mostra o grafo só no index-poc.html.
+    if (!["index", "poc"].includes(g.page ?? "index")) errs.push(`${gid}: page deve ser index ou poc`);
   }
   return errs;
 }

@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "source_commit": "eb8cf9a",
+ "source_commit": "3bde339 (com-mini-pc)",
  "kinds": [
   "start",
   "step",
@@ -674,32 +674,43 @@
      "id": "chuva",
      "kind": "io",
      "label": "ESP_Periferico_Chuva\nsensor MH-RD",
-     "detail": "Nó edge a bateria. Mede intensidade de chuva e envia por ESP-NOW unicast. Sketch: esps_perifericos/ESP_Periferico_Chuva/ESP_Periferico_Chuva.ino."
+     "detail": "Nó a bateria. Mede intensidade de chuva e envia por ESP-NOW unicast. É o nó usado na prova de conceito. Sketch: esps_perifericos/ESP_Periferico_Chuva/ESP_Periferico_Chuva.ino.",
+     "role": "nucleo"
     },
     {
      "id": "base",
      "kind": "io",
      "label": "ESP_Periferico_Base\numidade do solo",
-     "detail": "Template de nó edge. Lê umidade do solo (ADC, 4095 seco a 1200 encharcado) e envia por ESP-NOW unicast. Sketch: esps_perifericos/ESP_Periferico_Base/ESP_Periferico_Base.ino."
+     "detail": "Molde de nó (umidade do solo por ADC). Supérfluo para a prova: um nó de chuva basta para medir a cadeia. Sketch: esps_perifericos/ESP_Periferico_Base/ESP_Periferico_Base.ino.",
+     "role": "superfluo"
     },
     {
      "id": "central",
      "kind": "sub",
-     "label": "Gateway / Central\nMeuProjetoESP32.ino",
-     "detail": "Recebe telemetria, mantém a lista de dispositivos (DeviceManager), despacha configurações e serve a API REST na porta 80."
+     "label": "Central (ponte)\nMeuProjetoESP32.ino",
+     "detail": "Recebe a telemetria por ESP-NOW, envia cada leitura ao PC por HTTP POST (push) e devolve ao nó a configuração que vier na resposta. Nesta branch não tem servidor web.",
+     "role": "nucleo"
+    },
+    {
+     "id": "pc",
+     "kind": "step",
+     "label": "PC (servidor)\nFastAPI + SQLite",
+     "detail": "Ainda não existe no repositório: é a MS-011 da prova de conceito. Endereço e porta vêm de MINI_PC_IP e MINI_PC_PORT em secrets.h.",
+     "role": "nucleo"
     },
     {
      "id": "web",
      "kind": "step",
-     "label": "Interface web\n(computador)",
-     "detail": "Pasta web/. Consulta /api/status e envia /api/config e /api/device/delete. Fora do escopo desta página."
+     "label": "Interface web/\n(não funciona nesta branch)",
+     "detail": "web/app.js consulta /api/status no Central, rota que não existe na com-mini-pc. Supérfluo para a prova.",
+     "role": "superfluo"
     }
    ],
    "edges": [
     {
-     "from": "web",
-     "to": "central",
-     "label": "HTTP /api/*"
+     "from": "central",
+     "to": "pc",
+     "label": "HTTP POST /api/telemetria\n(resposta pode trazer config)"
     },
     {
      "from": "central",
@@ -712,6 +723,11 @@
      "to": "base",
      "label": "beacon, config ⇄ dados, ACK",
      "style": "both"
+    },
+    {
+     "from": "web",
+     "to": "central",
+     "label": "/api/status (inexistente)"
     }
    ]
   },
@@ -723,157 +739,183 @@
      "id": "boot",
      "kind": "start",
      "label": "Boot ou acorda do Deep Sleep",
-     "detail": "Ponto de entrada de setup(). Cada despertar do Deep Sleep reinicia o programa; só as variáveis RTC_DATA_ATTR sobrevivem."
+     "detail": "Ponto de entrada de setup(). Cada despertar do Deep Sleep reinicia o programa; só as variáveis RTC_DATA_ATTR sobrevivem.",
+     "role": "nucleo"
     },
     {
      "id": "init",
      "kind": "step",
      "label": "Serial 115200\nsensor.begin() (só Chuva)",
-     "detail": "No Chuva, sensorChuva.begin() põe o BJT NPN em corte imediatamente para proteger as trilhas do sensor. Chuva .ino:127."
+     "detail": "No Chuva, sensorChuva.begin() põe o BJT NPN em corte imediatamente para proteger as trilhas do sensor. Chuva .ino:127.",
+     "role": "nucleo"
     },
     {
      "id": "radio",
      "kind": "dec",
      "label": "ESP-NOW iniciou?",
-     "detail": "espNowNode.iniciar(ESPNOW_WIFI_CHANNEL). Chuva .ino:138."
+     "detail": "espNowNode.iniciar(ESPNOW_WIFI_CHANNEL). Chuva .ino:138.",
+     "role": "nucleo"
     },
     {
      "id": "safe",
      "kind": "sleep",
      "label": "Deep Sleep de segurança",
-     "detail": "Se o rádio falhar, dorme pelo intervalo atual em vez de ficar ligado gastando bateria."
+     "detail": "Se o rádio falhar, dorme pelo intervalo atual em vez de ficar ligado gastando bateria.",
+     "role": "nucleo"
     },
     {
      "id": "cb",
      "kind": "step",
      "label": "Registra callback de configuração\nRestaura MAC do Central da RTC",
-     "detail": "definirCallbackConfiguracao(aplicarNovaConfiguracao); se rtcCentralConhecido, restaurarCentralMac(). Chuva .ino:145-150."
+     "detail": "definirCallbackConfiguracao(aplicarNovaConfiguracao); se rtcCentralConhecido, restaurarCentralMac(). Chuva .ino:145-150.",
+     "role": "nucleo"
     },
     {
      "id": "reset",
      "kind": "dec",
      "label": "Hard reset?",
-     "detail": "EspNowPeriferico::isHardReset(): verdadeiro ao ligar na energia ou apertar o botão de reset; falso ao acordar do timer do Deep Sleep. Chuva .ino:130."
+     "detail": "EspNowPeriferico::isHardReset(): verdadeiro ao ligar na energia ou apertar o botão de reset; falso ao acordar do timer do Deep Sleep. Chuva .ino:130.",
+     "role": "nucleo"
     },
     {
      "id": "a1",
      "kind": "io",
      "label": "bootCount = 1\nAguarda beacon do Central (8 s)",
-     "detail": "Caso A. Descobre o MAC do Central pelo beacon e o guarda na RTC. Chuva .ino:158-166."
+     "detail": "Caso A. Descobre o MAC do Central pelo beacon e o guarda na RTC. Chuva .ino:158-166.",
+     "role": "nucleo"
     },
     {
      "id": "a2",
      "kind": "io",
      "label": "Janela de pareamento 60 s\nenvia telemetria e recebe config",
-     "detail": "executarJanelaPareamento(60000, montarPacote, aplicarNovaConfiguracao). Nesse minuto o nó fica online para o Central poder configurá-lo. Chuva .ino:168-172."
+     "detail": "executarJanelaPareamento(60000, montarPacote, aplicarNovaConfiguracao). Nesse minuto o nó fica online para o Central poder configurá-lo. Chuva .ino:168-172. Supérfluo para a prova: serve para configurar o nó pela interface logo depois de ligar. A ponte já foi descoberta no bloco anterior, e são 60 s de rádio ligado a cada reset.",
+     "role": "superfluo"
     },
     {
      "id": "a3",
      "kind": "dec",
      "label": "Modo = ONLINE?",
-     "detail": "Chuva .ino:181."
+     "detail": "Chuva .ino:181.",
+     "role": "nucleo"
     },
     {
      "id": "a4",
      "kind": "step",
      "label": "Escuta configuração 250 ms",
-     "detail": "aguardarPrioridadeConfiguracao(250) antes de dormir. Chuva .ino:185."
+     "detail": "aguardarPrioridadeConfiguracao(250) antes de dormir. Chuva .ino:185. Supérfluo para a prova: a escuta de configuração depois do envio já existe no ciclo normal.",
+     "role": "superfluo"
     },
     {
      "id": "b1",
      "kind": "step",
      "label": "bootCount++",
-     "detail": "Caso B: despertar programado. Chuva .ino:196-197."
+     "detail": "Caso B: despertar programado. Chuva .ino:196-197.",
+     "role": "nucleo"
     },
     {
      "id": "b2",
      "kind": "dec",
      "label": "Central conhecido?\nSe não, beacon por 4 s",
-     "detail": "Usa o MAC salvo na RTC; se não houver, aguarda beacon por até 4 s. Chuva .ino:199-202."
+     "detail": "Usa o MAC salvo na RTC; se não houver, aguarda beacon por até 4 s. Chuva .ino:199-202.",
+     "role": "nucleo"
     },
     {
      "id": "b3",
      "kind": "io",
      "label": "Escuta configuração 150 ms",
-     "detail": "Caso o Central já esteja transmitindo uma configuração pendente. Chuva .ino:209."
+     "detail": "Caso o Central já esteja transmitindo uma configuração pendente. Chuva .ino:209. Supérfluo para a prova: repete a escuta que vem logo depois do envio (bloco \"Config recebida em até 1650 ms?\").",
+     "role": "superfluo"
     },
     {
      "id": "b4",
      "kind": "io",
      "label": "Lê sensor e bateria\nEnvia telemetria unicast",
-     "detail": "montarPacoteSensores() + enviarDadosUnicast(). Chuva: liga o BJT por 50 ms e faz média de 8 amostras ADC. Base: liga PIN_SENSOR_VCC (se definido), espera 30 ms e lê o ADC. Chuva .ino:212-213."
+     "detail": "montarPacoteSensores() + enviarDadosUnicast(). Chuva: liga o BJT por 50 ms e faz média de 8 amostras ADC. Base: liga PIN_SENSOR_VCC (se definido), espera 30 ms e lê o ADC. Chuva .ino:212-213.",
+     "role": "nucleo"
     },
     {
      "id": "b5",
      "kind": "dec",
-     "label": "Config recebida em 600 ms?",
-     "detail": "aguardarPrioridadeConfiguracao(600), auto-estendida se chegar pacote. Chuva .ino:217."
+     "label": "Config recebida\nem até 1650 ms?",
+     "detail": "aguardarPrioridadeConfiguracao(1650): espera a ida e volta Central → PC → Central (timeout HTTP de 1500 ms). Se chegar configuração, encerra 250 ms depois (EspNowPeriferico.cpp:150-156). Chuva .ino:217. Cada ciclo pode ficar até 1,65 s acordado só esperando a rede (barreira H5).",
+     "role": "nucleo"
     },
     {
      "id": "b6",
      "kind": "io",
      "label": "Mede de novo e reenvia\ncom o estado novo",
-     "detail": "Confirma ao Central os novos parâmetros. Chuva .ino:218-221."
+     "detail": "Confirma ao Central os novos parâmetros. Chuva .ino:218-221.",
+     "role": "nucleo"
     },
     {
      "id": "b7",
      "kind": "step",
      "label": "Central indisponível neste ciclo",
-     "detail": "Sem Central, não envia nada e volta a dormir. Chuva .ino:224."
+     "detail": "Sem Central, não envia nada e volta a dormir. Chuva .ino:224.",
+     "role": "nucleo"
     },
     {
      "id": "b8",
      "kind": "step",
      "label": "Acumula uptime",
-     "detail": "tempoUptimeAcumuladoSegundos += tempo do ciclo + 1. Chuva .ino:227."
+     "detail": "tempoUptimeAcumuladoSegundos += tempo do ciclo + 1. Chuva .ino:227. Supérfluo para a prova: o uptime acumulado não entra em nenhuma métrica; quem conta as leituras é o número de sequência (MS-013).",
+     "role": "superfluo"
     },
     {
      "id": "b9",
      "kind": "dec",
      "label": "Modo = ONLINE?",
-     "detail": "Chuva .ino:229."
+     "detail": "Chuva .ino:229.",
+     "role": "nucleo"
     },
     {
      "id": "loopA",
      "kind": "sub",
      "label": "Segue para loop()\n(ver grafo 2)",
-     "detail": "Modo ONLINE contínuo: o nó não dorme."
+     "detail": "Modo ONLINE contínuo: o nó não dorme.",
+     "role": "nucleo"
     },
     {
      "id": "sleepA",
      "kind": "sleep",
      "label": "entrarDeepSleep(rtcIntervaloMin)",
-     "detail": "Desliga CPU e rádio e acorda pelo timer RTC após rtcIntervaloMin minutos."
+     "detail": "Desliga CPU e rádio e acorda pelo timer RTC após rtcIntervaloMin minutos.",
+     "role": "nucleo"
     },
     {
      "id": "loopB",
      "kind": "sub",
      "label": "Segue para loop()\n(ver grafo 2)",
-     "detail": "Modo ONLINE contínuo: o nó não dorme."
+     "detail": "Modo ONLINE contínuo: o nó não dorme.",
+     "role": "nucleo"
     },
     {
      "id": "sleepB",
      "kind": "sleep",
      "label": "entrarDeepSleep(rtcIntervaloMin)",
-     "detail": "Desliga CPU e rádio e acorda pelo timer RTC após rtcIntervaloMin minutos."
+     "detail": "Desliga CPU e rádio e acorda pelo timer RTC após rtcIntervaloMin minutos.",
+     "role": "nucleo"
     },
     {
      "id": "retA",
      "kind": "start",
      "label": "↻ acorda pelo timer\nvolta ao Boot",
-     "detail": "O Deep Sleep reinicia o programa: o fluxo recomeça em setup()."
+     "detail": "O Deep Sleep reinicia o programa: o fluxo recomeça em setup().",
+     "role": "nucleo"
     },
     {
      "id": "retB",
      "kind": "start",
      "label": "↻ acorda pelo timer\nvolta ao Boot",
-     "detail": "O Deep Sleep reinicia o programa: o fluxo recomeça em setup()."
+     "detail": "O Deep Sleep reinicia o programa: o fluxo recomeça em setup().",
+     "role": "nucleo"
     },
     {
      "id": "retS",
      "kind": "start",
      "label": "↻ acorda pelo timer\nvolta ao Boot",
-     "detail": "O Deep Sleep reinicia o programa: o fluxo recomeça em setup()."
+     "detail": "O Deep Sleep reinicia o programa: o fluxo recomeça em setup().",
+     "role": "nucleo"
     }
    ],
    "edges": [
@@ -1008,73 +1050,85 @@
      "id": "l0",
      "kind": "start",
      "label": "loop()",
-     "detail": "Executado repetidamente nos modos ONLINE e LIGHT_SLEEP. Chuva .ino:244."
+     "detail": "Executado repetidamente nos modos ONLINE e LIGHT_SLEEP. Chuva .ino:244.",
+     "role": "nucleo"
     },
     {
      "id": "l1",
      "kind": "io",
      "label": "Central desconhecido?\nbeacon por 2 s",
-     "detail": "Salva o MAC na RTC quando descobre. Chuva .ino:247-252."
+     "detail": "Salva o MAC na RTC quando descobre. Chuva .ino:247-252.",
+     "role": "nucleo"
     },
     {
      "id": "l2",
      "kind": "io",
      "label": "Escuta configuração 50 ms",
-     "detail": "PRIORIDADE MÁXIMA: processa configurações antes de enviar. Chuva .ino:255."
+     "detail": "PRIORIDADE MÁXIMA: processa configurações antes de enviar. Chuva .ino:255. Supérfluo para a prova: configuração no modo ONLINE não é testada; o caminho de volta é medido no ciclo com deep sleep (cenário C1).",
+     "role": "superfluo"
     },
     {
      "id": "l3",
      "kind": "dec",
      "label": "Aplicou nova configuração?",
-     "detail": ""
+     "detail": " Supérfluo para a prova (ver bloco anterior).",
+     "role": "superfluo"
     },
     {
      "id": "l4",
      "kind": "io",
      "label": "Envia telemetria de confirmação\ndelay 100 ms",
-     "detail": "Confirma o novo estado ao Central e zera o cronômetro de envio. Chuva .ino:256-260."
+     "detail": "Confirma o novo estado ao Central e zera o cronômetro de envio. Chuva .ino:256-260. Supérfluo para a prova (ver \"Escuta configuração 50 ms\").",
+     "role": "superfluo"
     },
     {
      "id": "l5",
      "kind": "dec",
      "label": "Intervalo vencido\nou primeiro envio?",
-     "detail": "intervaloMs = rtcIntervaloMin × 60000 (5000 ms se for 0). Chuva .ino:263-268."
+     "detail": "intervaloMs = rtcIntervaloMin × 60000 (5000 ms se for 0). Chuva .ino:263-268.",
+     "role": "nucleo"
     },
     {
      "id": "l6",
      "kind": "io",
-     "label": "Escuta config 80 ms\nLê sensor e envia\nJanela de 500 ms",
-     "detail": "Depois de cada envio mantém 500 ms de escuta; se chegar configuração, mede e reenvia. Chuva .ino:268-283."
+     "label": "Escuta config 80 ms\nLê sensor e envia\nJanela de 500 ms (1650 em LIGHT_SLEEP)",
+     "detail": "Depois de cada envio escuta por 500 ms (1650 ms em LIGHT_SLEEP, para cobrir a ida e volta ao PC); se chegar configuração, mede e reenvia. Chuva .ino:268-285.",
+     "role": "nucleo"
     },
     {
      "id": "l7",
      "kind": "dec",
      "label": "Modo atual?",
-     "detail": "Chuva .ino:287-297."
+     "detail": "Chuva .ino:287-297.",
+     "role": "nucleo"
     },
     {
      "id": "l8",
      "kind": "sleep",
      "label": "DEEP_SLEEP: espera 200 ms\ne entra em Deep Sleep",
-     "detail": "Dá tempo de estabilizar o ACK antes de dormir. A saída é o ciclo do grafo 1."
+     "detail": "Dá tempo de estabilizar o ACK antes de dormir. A saída é o ciclo do grafo 1.",
+     "role": "nucleo"
     },
     {
      "id": "l9",
      "kind": "sleep",
      "label": "LIGHT_SLEEP: timer + esp_light_sleep_start()\nultimoEnvio = 0",
-     "detail": "Suspende a CPU mantendo a RAM; ao acordar força envio na próxima iteração. Chuva .ino:291-296."
+     "detail": "Suspende a CPU mantendo a RAM; ao acordar força envio na próxima iteração. Chuva .ino:291-296. Supérfluo para a prova: LIGHT_SLEEP não entra em nenhum cenário.",
+     "role": "superfluo"
     },
     {
      "id": "l10",
      "kind": "step",
      "label": "ONLINE: delay 20 ms",
-     "detail": "Chuva .ino:299."
+     "detail": "Chuva .ino:299.",
+     "role": "nucleo"
     },
     {
      "id": "l11",
      "kind": "start",
      "label": "↻ volta ao início\nde loop()",
-     "detail": "loop() é chamado de novo pelo Arduino."
+     "detail": "loop() é chamado de novo pelo Arduino.",
+     "role": "nucleo"
     }
    ],
    "edges": [
@@ -1152,37 +1206,43 @@
      "id": "c0",
      "kind": "start",
      "label": "Pacote MSG_CONFIG_PARAMETROS\nchega do Central",
-     "detail": "Callback aplicarNovaConfiguracao(cfg), definido por definirCallbackConfiguracao(). Chuva .ino:79."
+     "detail": "Callback aplicarNovaConfiguracao(cfg), definido por definirCallbackConfiguracao(). Chuva .ino:79.",
+     "role": "nucleo"
     },
     {
      "id": "c1",
      "kind": "step",
      "label": "Salva MAC do Central na RTC",
-     "detail": "Se o Central já foi descoberto. Chuva .ino:84-87."
+     "detail": "Se o Central já foi descoberto. Chuva .ino:84-87. Supérfluo para a prova: o MAC da ponte já é salvo quando o beacon é encontrado.",
+     "role": "superfluo"
     },
     {
      "id": "c2",
      "kind": "dec",
      "label": "novoIntervaloMin > 0?",
-     "detail": "Se sim, atualiza rtcIntervaloMin. Chuva .ino:89-92."
+     "detail": "Se sim, atualiza rtcIntervaloMin. Chuva .ino:89-92.",
+     "role": "nucleo"
     },
     {
      "id": "c3",
      "kind": "dec",
      "label": "novoModo não vazio?",
-     "detail": "Normaliza \"DEEP SLEEP\"/\"DEEP_SLEEP\", \"LIGHT SLEEP\"/\"LIGHT_SLEEP\" e \"ONLINE\" para rtcModoOperacao. Outros valores são copiados como vêm. Chuva .ino:94-106."
+     "detail": "Normaliza \"DEEP SLEEP\"/\"DEEP_SLEEP\", \"LIGHT SLEEP\"/\"LIGHT_SLEEP\" e \"ONLINE\" para rtcModoOperacao. Outros valores são copiados como vêm. Chuva .ino:94-106.",
+     "role": "nucleo"
     },
     {
      "id": "c4",
      "kind": "dec",
      "label": "novoNome não vazio?",
-     "detail": "Se sim, atualiza rtcNodeName. Chuva .ino:108-112."
+     "detail": "Se sim, atualiza rtcNodeName. Chuva .ino:108-112. Supérfluo para a prova: o nome do nó deveria viver no servidor, não no nó.",
+     "role": "superfluo"
     },
     {
      "id": "c5",
      "kind": "io",
      "label": "enviarAckConfiguracao(NODE_ID, true,\nintervalo, modo)",
-     "detail": "PacoteAckConfig (MSG_ACK_CONFIG) de volta ao Central com o que foi efetivamente aplicado. Chuva .ino:116."
+     "detail": "PacoteAckConfig (MSG_ACK_CONFIG) de volta ao Central com o que foi efetivamente aplicado. Chuva .ino:116.",
+     "role": "nucleo"
     }
    ],
    "edges": [
@@ -1213,68 +1273,86 @@
    "note": "Conceito: callback é uma função que você entrega à biblioteca para ela chamar quando um evento acontece (aqui, chegou configuração). Ela roda na task de Wi-Fi, não no loop(): deve ser curta e não bloquear."
   },
   "g-gw-setup": {
-   "title": "Gateway: inicialização",
+   "title": "Ponte (Central): inicialização",
    "direction": "UD",
+   "note": "Conceito: ESP-NOW e Wi-Fi dividem o mesmo rádio e o mesmo canal. Ao conectar no roteador, o ESP-NOW passa a usar o canal do roteador, enquanto os nós continuam no canal 1 (barreira H1). Nesta branch não há ponto de acesso próprio (softAP) nem servidor web.",
    "nodes": [
     {
      "id": "s0",
      "kind": "start",
      "label": "Boot",
-     "detail": "setup() em MeuProjetoESP32.ino:249."
+     "detail": "setup() em MeuProjetoESP32.ino:545.",
+     "role": "nucleo"
     },
     {
      "id": "s1",
      "kind": "step",
      "label": "Serial 115200",
-     "detail": ""
+     "detail": ".ino:546.",
+     "role": "nucleo"
     },
     {
      "id": "s2",
-     "kind": "io",
-     "label": "wifiManager.connect(15 s)",
-     "detail": "Usa WIFI_SSID e WIFI_PASSWORD de secrets.h. .ino:260."
+     "kind": "step",
+     "label": "Cria mutex e\nfila de 20 leituras",
+     "detail": "xSemaphoreCreateMutex() e xQueueCreate(20, ...). A fila liga o callback (core 0) à task HTTP (core 1); o tamanho 20 é a barreira H3. .ino:554-555.",
+     "role": "nucleo"
     },
     {
      "id": "s3",
-     "kind": "dec",
-     "label": "Wi-Fi conectado?",
-     "detail": ".ino:262."
+     "kind": "sub",
+     "label": "Cria TaskPushMiniPC\nno core 1 (8 KB)",
+     "detail": "xTaskCreatePinnedToCore(taskDespachoMiniPC, ..., 1). Ver grafo 4. .ino:558-566.",
+     "role": "nucleo"
     },
     {
      "id": "s4",
-     "kind": "step",
-     "label": "Imprime o IP\npara colar na interface web",
-     "detail": ".ino:263-270."
+     "kind": "io",
+     "label": "wifiManager.connect(15 s)",
+     "detail": "Usa WIFI_SSID e WIFI_PASSWORD de secrets.h. .ino:570.",
+     "role": "nucleo"
     },
     {
      "id": "s5",
-     "kind": "io",
-     "label": "WIFI_AP_STA + softAP\nSitioOnline_ESP32 / 12345678\nno canal do ESP-NOW",
-     "detail": "Fallback quando o roteador não responde. IP do AP: 192.168.4.1. .ino:273-281."
+     "kind": "dec",
+     "label": "Wi-Fi conectado?",
+     "detail": ".ino:572.",
+     "role": "nucleo"
     },
     {
      "id": "s6",
-     "kind": "io",
-     "label": "espNowCentral.iniciar(canal, false)",
-     "detail": ".ino:285."
+     "kind": "step",
+     "label": "Imprime o IP da ponte\ne a URL do PC",
+     "detail": "Confere se MINI_PC_IP e MINI_PC_PORT estão certos. .ino:573-580.",
+     "role": "nucleo"
     },
     {
      "id": "s7",
-     "kind": "sub",
-     "label": "Registra callbacks ESP-NOW\n(telemetria e ACK de config)",
-     "detail": "Ver grafo 3. .ino:288 e 317."
+     "kind": "step",
+     "label": "Fica em WIFI_STA sem roteador\n(reconecta pelo loop)",
+     "detail": "O ESP-NOW sobe no canal atual; quando o Wi-Fi conectar mais tarde, o canal passa a ser o do roteador (H1). .ino:581-587.",
+     "role": "nucleo"
     },
     {
      "id": "s8",
-     "kind": "sub",
-     "label": "Registra rotas REST\nserver.begin()",
-     "detail": "Ver grafo 4. Rotas /api/status, /api/config e /api/device/delete, com OPTIONS para CORS. .ino:336-343."
+     "kind": "io",
+     "label": "espNowCentral.iniciar(canal, false)\nadota o canal do Wi-Fi",
+     "detail": "Com configurarWifi = false, usa WiFi.channel() em vez do canal 1. EspNowCentral.cpp:33-37; .ino:590.",
+     "role": "nucleo"
     },
     {
      "id": "s9",
+     "kind": "sub",
+     "label": "Registra callbacks ESP-NOW\n(telemetria e ACK de config)",
+     "detail": "Ver grafo 3. .ino:593 e 648.",
+     "role": "nucleo"
+    },
+    {
+     "id": "s10",
      "kind": "step",
      "label": "Entra em loop()",
-     "detail": "Ver grafo 2."
+     "detail": "Ver grafo 2.",
+     "role": "nucleo"
     }
    ],
    "edges": [
@@ -1292,25 +1370,25 @@
     },
     {
      "from": "s3",
-     "to": "s4",
-     "label": "sim"
-    },
-    {
-     "from": "s3",
-     "to": "s5",
-     "label": "não"
+     "to": "s4"
     },
     {
      "from": "s4",
-     "to": "s6"
+     "to": "s5"
     },
     {
      "from": "s5",
-     "to": "s6"
+     "to": "s6",
+     "label": "sim"
+    },
+    {
+     "from": "s5",
+     "to": "s7",
+     "label": "não"
     },
     {
      "from": "s6",
-     "to": "s7"
+     "to": "s8"
     },
     {
      "from": "s7",
@@ -1319,61 +1397,66 @@
     {
      "from": "s8",
      "to": "s9"
+    },
+    {
+     "from": "s9",
+     "to": "s10"
     }
-   ],
-   "note": "Conceito: o ESP32 pode ser estação Wi-Fi (STA, conecta ao roteador) e ponto de acesso (AP) ao mesmo tempo (WIFI_AP_STA). Atenção: o ESP-NOW usa o mesmo rádio e o mesmo canal do Wi-Fi; esse é o risco P1 do STATUS.md."
+   ]
   },
   "g-gw-loop": {
-   "title": "Gateway: loop()",
+   "title": "Ponte (Central): loop()",
    "direction": "UD",
+   "note": "Conceito: loop cooperativo com millis(). Em vez de delay(), cada tarefa confere se já passou o tempo dela. O envio ao PC não está aqui: ele roda em paralelo na TaskPushMiniPC (grafo 4).",
    "nodes": [
     {
      "id": "p0",
      "kind": "start",
      "label": "loop()",
-     "detail": ".ino:351."
+     "detail": ".ino:675.",
+     "role": "nucleo"
     },
     {
      "id": "p1",
-     "kind": "sub",
-     "label": "A cada passada:\nserver.handleClient()",
-     "detail": "Atende as requisições HTTP da interface web. .ino:353."
+     "kind": "io",
+     "label": "A cada 250 ms: reenvia a config pendente\na nós vistos há menos de 15 s\n(mín. 450 ms entre tentativas)",
+     "detail": "Caminho de volta servidor → nó: repete até chegar o ACK. Só funciona enquanto o nó está acordado. .ino:677-705.",
+     "role": "nucleo"
     },
     {
      "id": "p2",
      "kind": "io",
-     "label": "A cada 250 ms: para cada nó com config pendente,\nMAC conhecido e visto há menos de 15 s,\nreenvia a configuração (mín. 450 ms entre tentativas)",
-     "detail": "Repete até receber o ACK do nó. Só funciona enquanto o nó está acordado. .ino:356-371."
+     "label": "A cada 1,5 s:\nenviarBroadcastBeacon(\"CENTRAL_SITIO\")",
+     "detail": "Permite que os nós descubram a ponte ao acordar. .ino:708-711.",
+     "role": "nucleo"
     },
     {
      "id": "p3",
-     "kind": "io",
-     "label": "A cada 1,5 s:\nenviarBroadcastBeacon(\"CENTRAL_SITIO\")",
-     "detail": "Permite que os nós descubram o Central ao acordar. .ino:375-378."
+     "kind": "step",
+     "label": "wifiManager.handleReconnect()\n(tenta a cada 10 s)",
+     "detail": "Reconexão automática. Durante a tentativa o rádio procura a rede e pode mudar de canal (barreira H6). .ino:714; WifiManager.cpp:79-91.",
+     "role": "nucleo"
     },
     {
      "id": "p4",
      "kind": "step",
-     "label": "A cada passada:\nwifiManager.handleReconnect()",
-     "detail": "Reconexão automática ao Wi-Fi. .ino:381."
+     "label": "A cada 2 s: checkScheduleTimeout(30 s)\nmarca nó atrasado como OFFLINE",
+     "detail": "Supérfluo para a prova: o resultado fica só na RAM e no Serial e ninguém o consulta; o servidor calcula atrasos e lacunas pelas leituras. .ino:717-724.",
+     "role": "superfluo"
     },
     {
      "id": "p5",
      "kind": "step",
-     "label": "A cada 2 s:\ncheckScheduleTimeout(30 s)",
-     "detail": "Marca como OFFLINE o nó que não enviou sinal no horário previsto, com 30 s de tolerância. .ino:384-388."
+     "label": "delay 10 ms",
+     "detail": ".ino:726.",
+     "role": "nucleo"
     },
     {
      "id": "p6",
-     "kind": "step",
-     "label": "delay 10 ms",
-     "detail": ".ino:390."
-    },
-    {
-     "id": "p7",
      "kind": "start",
      "label": "↻ volta ao início\nde loop()",
-     "detail": "loop() é chamado de novo pelo Arduino."
+     "detail": "loop() é chamado de novo pelo Arduino.",
+     "role": "nucleo"
     }
    ],
    "edges": [
@@ -1400,89 +1483,111 @@
     {
      "from": "p5",
      "to": "p6"
-    },
-    {
-     "from": "p6",
-     "to": "p7"
     }
-   ],
-   "note": "Conceito: loop cooperativo com millis(). Em vez de delay(), cada tarefa confere se 'já passou o tempo dela'. Assim o Central atende HTTP, reenvia configurações e emite beacon sem travar."
+   ]
   },
   "g-gw-cb": {
-   "title": "Gateway: callbacks ESP-NOW",
+   "title": "Ponte (Central): callbacks ESP-NOW",
    "direction": "UD",
+   "note": "Conceito: estes callbacks rodam na task do Wi-Fi (core 0), ao mesmo tempo que o loop() e a task HTTP. Por isso usam o mutex para mexer no DeviceManager e entregam a leitura à task HTTP pela fila, sem esperar a rede.",
    "nodes": [
     {
      "id": "t0",
      "kind": "start",
      "label": "Telemetria recebida\n(MSG_DADOS_SENSORES)",
-     "detail": "Callback registrado por definirCallbackRecepcao(). .ino:288."
+     "detail": "Callback registrado por definirCallbackRecepcao(). Precisa ser rápido: enquanto roda, o rádio não processa outro pacote. .ino:593.",
+     "role": "nucleo"
     },
     {
      "id": "t1",
-     "kind": "dec",
-     "label": "Nó novo?",
-     "detail": ".ino:296."
+     "kind": "step",
+     "label": "Copia o pacote e o MAC\npara um EventoTelemetriaPush",
+     "detail": ".ino:594-598.",
+     "role": "nucleo"
     },
     {
      "id": "t2",
      "kind": "step",
-     "label": "registerDevice()",
-     "detail": "Cadastra o nó no DeviceManager com o MAC em texto. .ino:297."
+     "label": "Registra o nó e guarda o MAC\n(DeviceManager, com mutex)",
+     "detail": "O MAC é necessário para devolver configuração ao nó. .ino:607-611.",
+     "role": "nucleo"
     },
     {
      "id": "t3",
      "kind": "step",
-     "label": "setDeviceMac()\nupdateTelemetry()",
-     "detail": "Guarda o MAC e atualiza valor, bateria, modo e uptime sem sobrescrever o que o usuário configurou. .ino:299-303."
+     "label": "updateTelemetry()\n(cópia da leitura na RAM)",
+     "detail": "Supérfluo para a prova: guardava os dados para a antiga API /api/status; nesta branch quem guarda é o PC. .ino:612-619.",
+     "role": "superfluo"
     },
     {
      "id": "t4",
      "kind": "dec",
-     "label": "Config pendente\nou divergente?",
-     "detail": "deviceManager.getPendingConfig(). .ino:308."
+     "label": "Config pendente\npara este nó?",
+     "detail": "deviceManager.getPendingConfig(). .ino:621-626.",
+     "role": "nucleo"
     },
     {
      "id": "t5",
      "kind": "io",
      "label": "enviarConfiguracao() imediato",
-     "detail": "PRIORIDADE 1: o nó acabou de acordar, então despacha na hora. .ino:309-312."
+     "detail": "O nó acabou de acordar, então a configuração vai na hora. .ino:630-633.",
+     "role": "nucleo"
     },
     {
      "id": "t6",
+     "kind": "dec",
+     "label": "Fila cheia?",
+     "detail": "xQueueSend(..., 0) não espera vaga. .ino:637.",
+     "role": "nucleo"
+    },
+    {
+     "id": "t7",
      "kind": "step",
-     "label": "Fim",
-     "detail": ""
+     "label": "Descarta a leitura mais antiga\ne põe a nova",
+     "detail": "Perda permanente quando o PC fica fora do ar (barreira H3). .ino:640-642.",
+     "role": "nucleo"
+    },
+    {
+     "id": "t8",
+     "kind": "step",
+     "label": "Fim\n(a task HTTP retira da fila)",
+     "detail": "Ver grafo 4.",
+     "role": "nucleo"
     },
     {
      "id": "k0",
      "kind": "start",
      "label": "ACK de config recebido\n(MSG_ACK_CONFIG)",
-     "detail": "Callback registrado por definirCallbackAckConfig(). .ino:317."
+     "detail": "Callback registrado por definirCallbackAckConfig(). .ino:648.",
+     "role": "nucleo"
     },
     {
      "id": "k1",
      "kind": "dec",
      "label": "sucesso?",
-     "detail": ".ino:320."
+     "detail": ".ino:652.",
+     "role": "nucleo"
     },
     {
      "id": "k2",
      "kind": "step",
      "label": "Atualiza intervalo e modo exibidos\nse o usuário não fixou valor",
-     "detail": "Respeita hasUserInterval e hasUserMode. .ino:322-329."
+     "detail": "Supérfluo para a prova: os valores \"exibidos\" eram para a interface web antiga. .ino:653-662.",
+     "role": "superfluo"
     },
     {
      "id": "k3",
      "kind": "step",
-     "label": "clearPendingConfig()\nnotificação \"sincronizada\"",
-     "detail": ".ino:330-331."
+     "label": "clearPendingConfig()",
+     "detail": "Encerra os reenvios do loop(). .ino:663.",
+     "role": "nucleo"
     },
     {
      "id": "k4",
      "kind": "step",
      "label": "Mantém a configuração pendente",
-     "detail": "Será reenviada pelo loop()."
+     "detail": "Será reenviada pelo loop().",
+     "role": "nucleo"
     }
    ],
    "edges": [
@@ -1492,13 +1597,7 @@
     },
     {
      "from": "t1",
-     "to": "t2",
-     "label": "sim"
-    },
-    {
-     "from": "t1",
-     "to": "t3",
-     "label": "não"
+     "to": "t2"
     },
     {
      "from": "t2",
@@ -1523,6 +1622,20 @@
      "to": "t6"
     },
     {
+     "from": "t6",
+     "to": "t7",
+     "label": "sim"
+    },
+    {
+     "from": "t6",
+     "to": "t8",
+     "label": "não"
+    },
+    {
+     "from": "t7",
+     "to": "t8"
+    },
+    {
      "from": "k0",
      "to": "k1"
     },
@@ -1540,118 +1653,596 @@
      "from": "k2",
      "to": "k3"
     }
-   ],
-   "note": "Conceito: estes callbacks rodam em outra task do FreeRTOS, ao mesmo tempo que o loop(). Mexer na mesma lista dos dois lados sem proteção é o risco P3 do STATUS.md (fila ou mutex)."
+   ]
   },
-  "g-gw-api": {
-   "title": "Gateway: API REST",
-   "direction": "LR",
+  "g-gw-push": {
+   "title": "Ponte (Central): envio ao PC (TaskPushMiniPC)",
+   "direction": "UD",
+   "note": "Conceito: uma task do FreeRTOS é um pedaço do programa que roda em paralelo. Esta roda no core 1 para que a espera do HTTP (até 1500 ms) não trave o rádio no core 0. Ela envia uma leitura por vez e não tenta de novo a que falhou.",
    "nodes": [
     {
-     "id": "r0",
+     "id": "h0",
      "kind": "start",
-     "label": "Interface web",
-     "detail": "Requisições com CORS liberado (Access-Control-Allow-Origin: *)."
+     "label": "TaskPushMiniPC\nespera um item na fila",
+     "detail": "xQueueReceive(..., portMAX_DELAY). .ino:531-540.",
+     "role": "nucleo"
     },
     {
-     "id": "r1",
-     "kind": "sub",
-     "label": "GET /api/status",
-     "detail": "Devolve a lista de nós (conectividade, modo, último sinal, valor, bateria, fonte, capacidade, uptime, config pendente), notificações e o cronograma da janela de recepção (ciclo 60 s, janela 10 s, informativo). .ino:44."
-    },
-    {
-     "id": "r2",
-     "kind": "sub",
-     "label": "POST /api/config",
-     "detail": "Corpo JSON com espId, field e value. .ino:143."
-    },
-    {
-     "id": "r3",
-     "kind": "sub",
-     "label": "POST /api/device/delete",
-     "detail": "Corpo JSON com id; chama removeDevice(). .ino:224."
-    },
-    {
-     "id": "r4",
-     "kind": "step",
-     "label": "unit, powerSource, batteryCapacity",
-     "detail": "Ficam só no Central (exibição e autonomia). Resposta \"sent\". .ino:162-179."
-    },
-    {
-     "id": "r5",
-     "kind": "step",
-     "label": "interval, mode, name",
-     "detail": "queueConfig() grava na fila prioritária. .ino:186-195."
-    },
-    {
-     "id": "r6",
+     "id": "h1",
      "kind": "dec",
-     "label": "MAC do nó conhecido?",
-     "detail": ".ino:200."
+     "label": "Wi-Fi conectado?",
+     "detail": ".ino:485.",
+     "role": "nucleo"
     },
     {
-     "id": "r7",
+     "id": "h2",
+     "kind": "step",
+     "label": "Leitura descartada\n(só aviso no Serial)",
+     "detail": "Durante uma queda do Wi-Fi, cada leitura retirada da fila é perdida, sem nova tentativa (parte da barreira H6). .ino:485-488.",
+     "role": "nucleo"
+    },
+    {
+     "id": "h3",
+     "kind": "step",
+     "label": "Monta o JSON da telemetria",
+     "detail": "Envia nodeId, nodeName, sensorUmidade, bateriaPct, modoOperacao, tempoUptimeSegundos e macAddr. Ficam de fora temperatura, bateriaMv e cicloWakeup. .ino:254-292.",
+     "role": "nucleo"
+    },
+    {
+     "id": "h4",
      "kind": "io",
-     "label": "enviarConfiguracao() via ESP-NOW\nresposta \"sent\"",
-     "detail": ".ino:203-209."
+     "label": "HTTP POST /api/telemetria\ntimeout de 1500 ms",
+     "detail": "Uma leitura por vez; com o PC fora do ar, cada uma espera até 1,5 s (barreira H4). .ino:493-511.",
+     "role": "nucleo"
     },
     {
-     "id": "r8",
-     "kind": "step",
-     "label": "Fica na fila\nresposta \"queued\"",
-     "detail": "Nó em repouso: será enviada quando ele acordar (callback de telemetria ou retry do loop). .ino:213-214."
+     "id": "h5",
+     "kind": "dec",
+     "label": "HTTP 200 ou 201?",
+     "detail": ".ino:514.",
+     "role": "nucleo"
     },
     {
-     "id": "r9",
+     "id": "h6",
      "kind": "step",
-     "label": "removeDevice(id)",
-     "detail": ".ino:233."
+     "label": "processarRespostaMiniPC():\nlê a configuração da resposta",
+     "detail": "Núcleo: é por aqui que a configuração enviada pelo servidor chega ao nó (cenário C1). O excesso é supérfluo: aceita 3 formatos de resposta e vários nomes para cada campo, cerca de 190 linhas, quando basta um formato combinado com a MS-011 (STATUS.md §4). .ino:296-481.",
+     "role": "nucleo"
+    },
+    {
+     "id": "h7",
+     "kind": "dec",
+     "label": "Há configuração\npara este nó?",
+     "detail": ".ino:411-469.",
+     "role": "nucleo"
+    },
+    {
+     "id": "h8",
+     "kind": "io",
+     "label": "enviarConfiguracao()\nvia ESP-NOW ao nó",
+     "detail": "O nó ainda está na janela de 1650 ms. .ino:474-476.",
+     "role": "nucleo"
+    },
+    {
+     "id": "h9",
+     "kind": "step",
+     "label": "Erro ou timeout:\nsó aviso no Serial",
+     "detail": "A leitura que falhou não volta para a fila: fica perdida (barreiras H3 e H4). .ino:520-525.",
+     "role": "nucleo"
+    },
+    {
+     "id": "h10",
+     "kind": "step",
+     "label": "http.end()\nvolta a esperar a fila",
+     "detail": ".ino:527.",
+     "role": "nucleo"
     }
    ],
    "edges": [
     {
-     "from": "r0",
-     "to": "r1"
+     "from": "h0",
+     "to": "h1"
     },
     {
-     "from": "r0",
-     "to": "r2"
-    },
-    {
-     "from": "r0",
-     "to": "r3"
-    },
-    {
-     "from": "r2",
-     "to": "r4",
-     "label": "campos locais"
-    },
-    {
-     "from": "r2",
-     "to": "r5",
-     "label": "campos do nó"
-    },
-    {
-     "from": "r5",
-     "to": "r6"
-    },
-    {
-     "from": "r6",
-     "to": "r7",
-     "label": "sim"
-    },
-    {
-     "from": "r6",
-     "to": "r8",
+     "from": "h1",
+     "to": "h2",
      "label": "não"
     },
     {
-     "from": "r3",
-     "to": "r9"
+     "from": "h1",
+     "to": "h3",
+     "label": "sim"
+    },
+    {
+     "from": "h3",
+     "to": "h4"
+    },
+    {
+     "from": "h4",
+     "to": "h5"
+    },
+    {
+     "from": "h5",
+     "to": "h6",
+     "label": "sim"
+    },
+    {
+     "from": "h5",
+     "to": "h9",
+     "label": "não"
+    },
+    {
+     "from": "h6",
+     "to": "h7"
+    },
+    {
+     "from": "h7",
+     "to": "h8",
+     "label": "sim"
+    },
+    {
+     "from": "h7",
+     "to": "h10",
+     "label": "não"
+    },
+    {
+     "from": "h8",
+     "to": "h10"
+    },
+    {
+     "from": "h9",
+     "to": "h10"
+    },
+    {
+     "from": "h10",
+     "to": "h0",
+     "label": "próxima leitura",
+     "style": "back"
+    },
+    {
+     "from": "h2",
+     "to": "h0",
+     "style": "back"
+    }
+   ]
+  },
+  "g-poc-cadeia": {
+   "title": "A cadeia da prova de conceito",
+   "direction": "LR",
+   "page": "poc",
+   "note": "Clique em cada bloco para ver o que ele faz e quais barreiras (H1–H7) passam por ele. A seta tracejada é o caminho de volta: a configuração que o servidor devolve ao nó.",
+   "nodes": [
+    {
+     "id": "no",
+     "kind": "io",
+     "label": "Nó sensor\nESP_Periferico_Chuva",
+     "detail": "Acorda, lê o sensor, envia por ESP-NOW, espera até 1650 ms por configuração e volta a dormir. Barreiras: H5 (tempo acordado esperando a rede) e H7 (alcance)."
+    },
+    {
+     "id": "rx",
+     "kind": "sub",
+     "label": "Ponte · core 0\ncallback ESP-NOW",
+     "detail": "Recebe o pacote, guarda o MAC e põe a leitura na fila sem esperar a rede. Barreiras: H1 (canal) e H2 (economia de energia do Wi-Fi)."
+    },
+    {
+     "id": "fila",
+     "kind": "dec",
+     "label": "Fila de 20 leituras",
+     "detail": "Quando enche, descarta a mais antiga. Barreira H3."
+    },
+    {
+     "id": "tx",
+     "kind": "sub",
+     "label": "Ponte · core 1\nTaskPushMiniPC",
+     "detail": "Envia uma leitura por vez por HTTP, com timeout de 1500 ms; descarta a que falhar. Barreiras: H4 (vazão) e H6 (queda do Wi-Fi)."
+    },
+    {
+     "id": "rot",
+     "kind": "step",
+     "label": "Roteador Wi-Fi\n2,4 GHz",
+     "detail": "Define o canal do rádio da ponte (H1). IP do PC reservado no DHCP."
+    },
+    {
+     "id": "api",
+     "kind": "sub",
+     "label": "PC · FastAPI\n(MS-011)",
+     "detail": "Rota POST /api/telemetria: grava o corpo cru e a hora de chegada. Pode devolver uma configuração na resposta."
+    },
+    {
+     "id": "mq",
+     "kind": "sub",
+     "label": "PC · Mosquitto + script\n(MS-015)",
+     "detail": "Variante MQTT: mesmo pacote, outro transporte. Entra no ciclo 3."
+    },
+    {
+     "id": "db",
+     "kind": "step",
+     "label": "SQLite\ngrava tudo, cru",
+     "detail": "Um arquivo só. As métricas saem de consultas SQL (metricas.sql, MS-013)."
     }
    ],
-   "note": "Conceito: API REST é um 'cardápio' de URLs que a interface web chama (GET lê, POST altera). O ESP32 serve isso com a biblioteca WebServer na porta 80. Hoje sem token: risco P5 do STATUS.md."
+   "edges": [
+    {
+     "from": "no",
+     "to": "rx",
+     "label": "ESP-NOW · H1 H7"
+    },
+    {
+     "from": "rx",
+     "to": "fila",
+     "label": "H3"
+    },
+    {
+     "from": "fila",
+     "to": "tx",
+     "label": "H4"
+    },
+    {
+     "from": "tx",
+     "to": "rot",
+     "label": "Wi-Fi · H1 H2 H6"
+    },
+    {
+     "from": "rot",
+     "to": "api",
+     "label": "HTTP"
+    },
+    {
+     "from": "rot",
+     "to": "mq",
+     "label": "MQTT"
+    },
+    {
+     "from": "api",
+     "to": "db"
+    },
+    {
+     "from": "mq",
+     "to": "db"
+    },
+    {
+     "from": "api",
+     "to": "no",
+     "label": "config na resposta · H5",
+     "style": "back"
+    }
+   ]
+  },
+  "g-poc-mapa-no": {
+   "title": "Nó e resto do repositório: núcleo × supérfluo",
+   "direction": "LR",
+   "page": "poc",
+   "note": "Módulos do nó de chuva e arquivos fora dos firmwares. Núcleo operacional (borda grossa): sem ele a cadeia não funciona. Supérfluo (apagado, tracejado): pode ser ignorado durante a prova; nada é apagado agora.",
+   "nodes": [
+    {
+     "id": "r-no",
+     "kind": "start",
+     "label": "Nó\nESP_Periferico_Chuva",
+     "detail": "esps_perifericos/ESP_Periferico_Chuva/.",
+     "role": "nucleo"
+    },
+    {
+     "id": "r-rp",
+     "kind": "start",
+     "label": "Resto do repositório",
+     "detail": "Arquivos fora dos dois firmwares.",
+     "role": "superfluo"
+    },
+    {
+     "id": "proto",
+     "kind": "io",
+     "label": "ProtocoloMensagens.h\n5 mensagens",
+     "detail": "O contrato entre nó e ponte (3 cópias iguais). A MS-013 acrescenta o número de sequência.",
+     "role": "nucleo"
+    },
+    {
+     "id": "sensor",
+     "kind": "io",
+     "label": "SensorChuvaMHRD\nleitura com BJT 50 ms",
+     "detail": "SensorChuvaMHRD.cpp.",
+     "role": "nucleo"
+    },
+    {
+     "id": "espno",
+     "kind": "io",
+     "label": "EspNowPeriferico\ndescoberta, envio, deep sleep",
+     "detail": "EspNowPeriferico.cpp. Canal fixo 1 na linha 62 (H1).",
+     "role": "nucleo"
+    },
+    {
+     "id": "jan",
+     "kind": "io",
+     "label": "Janela pós-envio\naté 1650 ms",
+     "detail": "ESP_Periferico_Chuva.ino:217 (H5). É o caminho de volta da configuração.",
+     "role": "nucleo"
+    },
+    {
+     "id": "par",
+     "kind": "step",
+     "label": "Janela de pareamento\n60 s após reset",
+     "detail": "ESP_Periferico_Chuva.ino:168-172. Serve à configuração pela interface antiga.",
+     "role": "superfluo"
+    },
+    {
+     "id": "rtcx",
+     "kind": "step",
+     "label": "Nome e uptime na RTC\nescuta extra de 150 ms",
+     "detail": "rtcNodeName, tempoUptimeAcumuladoSegundos e aguardarPrioridadeConfiguracao(150) antes do envio.",
+     "role": "superfluo"
+    },
+    {
+     "id": "bat",
+     "kind": "step",
+     "label": "Bateria e temperatura\nsimuladas",
+     "detail": "lerBateria() devolve 3980 mV fixo; temperatura 25,0 fixa. Não medem nada: ignorar nas análises.",
+     "role": "superfluo"
+    },
+    {
+     "id": "web",
+     "kind": "step",
+     "label": "web/ (app.js, 2.555 linhas)",
+     "detail": "Consulta /api/status no Central, rota que não existe nesta branch.",
+     "role": "superfluo"
+    },
+    {
+     "id": "tec",
+     "kind": "step",
+     "label": "TecladoMatriz.*",
+     "detail": "Não é incluído por nenhum sketch.",
+     "role": "superfluo"
+    },
+    {
+     "id": "ex",
+     "kind": "step",
+     "label": "exemplos/ e\nESP_Periferico_Base",
+     "detail": "Central reduzido e molde de nó; nenhum é usado na prova.",
+     "role": "superfluo"
+    }
+   ],
+   "edges": [
+    {
+     "from": "r-no",
+     "to": "proto"
+    },
+    {
+     "from": "r-no",
+     "to": "sensor"
+    },
+    {
+     "from": "r-no",
+     "to": "espno"
+    },
+    {
+     "from": "r-no",
+     "to": "jan"
+    },
+    {
+     "from": "r-no",
+     "to": "par"
+    },
+    {
+     "from": "r-no",
+     "to": "rtcx"
+    },
+    {
+     "from": "r-no",
+     "to": "bat"
+    },
+    {
+     "from": "r-rp",
+     "to": "web"
+    },
+    {
+     "from": "r-rp",
+     "to": "tec"
+    },
+    {
+     "from": "r-rp",
+     "to": "ex"
+    }
+   ]
+  },
+  "g-poc-mapa-ponte": {
+   "title": "Ponte (Central): núcleo × supérfluo",
+   "direction": "LR",
+   "page": "poc",
+   "note": "Módulos da ponte, MeuProjetoESP32.ino e arquivos de apoio na raiz. Núcleo operacional (borda grossa): sem ele a cadeia não funciona. Supérfluo (apagado, tracejado): pode ser ignorado durante a prova; nada é apagado agora.",
+   "nodes": [
+    {
+     "id": "r-pt",
+     "kind": "start",
+     "label": "Ponte\nMeuProjetoESP32.ino",
+     "detail": "Raiz do repositório.",
+     "role": "nucleo"
+    },
+    {
+     "id": "proto",
+     "kind": "io",
+     "label": "ProtocoloMensagens.h\n5 mensagens",
+     "detail": "O contrato entre nó e ponte (3 cópias iguais). A MS-013 acrescenta o número de sequência.",
+     "role": "nucleo"
+    },
+    {
+     "id": "espce",
+     "kind": "io",
+     "label": "EspNowCentral\nbeacon, pares, envio",
+     "detail": "EspNowCentral.cpp. Adota o canal do Wi-Fi (H1).",
+     "role": "nucleo"
+    },
+    {
+     "id": "wifi",
+     "kind": "io",
+     "label": "WifiManager\nconexão e reconexão",
+     "detail": "WifiManager.cpp (H6).",
+     "role": "nucleo"
+    },
+    {
+     "id": "task",
+     "kind": "sub",
+     "label": "Fila + TaskPushMiniPC\nHTTP POST",
+     "detail": "MeuProjetoESP32.ino:531-540 e 593-645 (H3, H4).",
+     "role": "nucleo"
+    },
+    {
+     "id": "dmn",
+     "kind": "step",
+     "label": "DeviceManager:\nMAC e config pendente",
+     "detail": "Necessário para devolver configuração ao nó.",
+     "role": "nucleo"
+    },
+    {
+     "id": "dms",
+     "kind": "step",
+     "label": "DeviceManager: cópia da telemetria,\nnotificações, heap, unidade, fonte",
+     "detail": "Herança da API /api/status que não existe nesta branch.",
+     "role": "superfluo"
+    },
+    {
+     "id": "parse",
+     "kind": "step",
+     "label": "Parser da resposta:\nexcesso de formatos e nomes",
+     "detail": "Ler a configuração da resposta é núcleo; aceitar 3 formatos e vários nomes por campo é supérfluo. MeuProjetoESP32.ino:296-481.",
+     "role": "superfluo"
+    },
+    {
+     "id": "tout",
+     "kind": "step",
+     "label": "checkScheduleTimeout\nOFFLINE no Serial",
+     "detail": "MeuProjetoESP32.ino:717-724.",
+     "role": "superfluo"
+    }
+   ],
+   "edges": [
+    {
+     "from": "r-pt",
+     "to": "proto"
+    },
+    {
+     "from": "r-pt",
+     "to": "espce"
+    },
+    {
+     "from": "r-pt",
+     "to": "wifi"
+    },
+    {
+     "from": "r-pt",
+     "to": "task"
+    },
+    {
+     "from": "r-pt",
+     "to": "dmn"
+    },
+    {
+     "from": "r-pt",
+     "to": "dms"
+    },
+    {
+     "from": "r-pt",
+     "to": "parse"
+    },
+    {
+     "from": "r-pt",
+     "to": "tout"
+    }
+   ]
+  },
+  "g-poc-ciclos": {
+   "title": "Ciclos PDCA e missões",
+   "direction": "UD",
+   "page": "poc",
+   "note": "Cores pela fase do PDCA: azul = planejar, laranja = fazer, amarelo = verificar, verde = agir. As folhas completas das missões ficam no app Tarefas-build. Os IDs MS-010 a MS-016 são provisórios até a emissão no app.",
+   "nodes": [
+    {
+     "id": "m10",
+     "kind": "sleep",
+     "label": "MS-010 · Mapear a arquitetura\ndo firmware da cadeia",
+     "detail": "Ciclo 1 · planejar. Desenhar o caminho de uma leitura do sensor ao PC (núcleo, callback, task, fila) com arquivo:linha de cada ponto de risco. Não altera código."
+    },
+    {
+     "id": "m11",
+     "kind": "io",
+     "label": "MS-011 · Montar servidor mínimo\nno PC que grava tudo",
+     "detail": "Ciclo 1 · fazer. FastAPI com POST /api/telemetria gravando o corpo cru e a hora em SQLite; testado sem placa."
+    },
+    {
+     "id": "m12",
+     "kind": "dec",
+     "label": "MS-012 · Rodar a cadeia ponta a ponta\ncom o firmware atual (C1)",
+     "detail": "Ciclo 1 · verificar. 1 hora, leitura a cada minuto, canal 1, 5 configurações enviadas. Nada é consertado: cada falha vira barreira anotada."
+    },
+    {
+     "id": "a1",
+     "kind": "start",
+     "label": "Ciclo 1 · agir\nbarreiras anotadas viram hipóteses",
+     "detail": "A lista de barreiras da MS-012 confirma ou ajusta H1–H7 e a matriz C1–C6."
+    },
+    {
+     "id": "m13",
+     "kind": "io",
+     "label": "MS-013 · Numerar e carimbar\nas leituras",
+     "detail": "Ciclo 2 · fazer. seq no pacote do nó; rssi, atraso_fila_ms e descartes na ponte; metricas.sql no servidor."
+    },
+    {
+     "id": "m14",
+     "kind": "dec",
+     "label": "MS-014 · Executar a matriz\nde cenários com HTTP",
+     "detail": "Ciclo 2 · verificar. C1 a C6 com todas as métricas; cada hipótese marcada como confirmada ou refutada."
+    },
+    {
+     "id": "a2",
+     "kind": "start",
+     "label": "Ciclo 2 · agir\nescolher os cenários críticos",
+     "detail": "Hipóteses confirmadas viram requisito do sistema final; os cenários piores são repetidos com MQTT."
+    },
+    {
+     "id": "m15",
+     "kind": "io",
+     "label": "MS-015 · Repetir os cenários\ncríticos com MQTT",
+     "detail": "Ciclo 3 · fazer e verificar. Mesma ponte com #define TRANSPORTE, Mosquitto no PC; tabela comparativa HTTP × MQTT."
+    },
+    {
+     "id": "m16",
+     "kind": "start",
+     "label": "MS-016 · Consolidar barreiras\ne recomendação de stack",
+     "detail": "Ciclo 3 · agir. Relatório A3 de uma página: cada barreira ligada a um número medido e a recomendação de rádio e transporte."
+    }
+   ],
+   "edges": [
+    {
+     "from": "m10",
+     "to": "m11"
+    },
+    {
+     "from": "m11",
+     "to": "m12"
+    },
+    {
+     "from": "m12",
+     "to": "a1"
+    },
+    {
+     "from": "a1",
+     "to": "m13"
+    },
+    {
+     "from": "m13",
+     "to": "m14"
+    },
+    {
+     "from": "m14",
+     "to": "a2"
+    },
+    {
+     "from": "a2",
+     "to": "m15"
+    },
+    {
+     "from": "m15",
+     "to": "m16"
+    }
+   ]
   }
  },
- "governance_date": "2026-10-20"
+ "governance_date": "2026-10-27"
 }

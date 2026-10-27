@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prova de Conceito ESP-NOW Wi-Fi</title>
+<link rel="stylesheet" href="visualizador.css">
+</head>
+<body>
+<header>
+  <h1>Prova de conceito: ESP-NOW → Wi-Fi → servidor</h1>
+  <p class="muted">Para onde a branch <code>com-mini-pc</code> vai agora. A prova de conceito substitui o roteiro MS-006 a MS-009
+    (<a href="#mudou">o que mudou</a>): primeiro fazer a cadeia inteira rodar do jeito mais direto, depois medir onde ela falha e
+    melhorar em ciclos PDCA. O fluxo detalhado de cada firmware, passo a passo, está em <a href="index.html">index.html</a>.</p>
+  <nav>
+    <a href="#objetivo">Objetivo</a>
+    <a href="#comece">Comece aqui</a>
+    <a href="#cadeia">A cadeia</a>
+    <a href="#nucleo">Núcleo × supérfluo</a>
+    <a href="#barreiras">Barreiras</a>
+    <a href="#medicao">Cenários e métricas</a>
+    <a href="#stack">Stack</a>
+    <a href="#missoes">Ciclos e missões</a>
+    <a href="#mudou">O que mudou</a>
+    <a href="index.html">← Fluxos dos firmwares</a>
+  </nav>
+  <div class="legend" aria-label="Legenda do papel na prova de conceito">
+    <span><i class="nucleo"></i><b>núcleo operacional</b>: sem ele a cadeia não funciona</span>
+    <span><i class="superfluo"></i><b>supérfluo</b> para a prova: pode ser ignorado agora</span>
+  </div>
+  <noscript>Os grafos precisam de JavaScript.</noscript>
+</header>
+
+<main>
+  <h2 id="objetivo">Objetivo da prova de conceito</h2>
+  <p><b>Pergunta a responder:</b> a cadeia <i>nó ESP32 → ESP-NOW → ponte ESP32 → Wi-Fi → roteador → PC</i> entrega as leituras de
+    forma confiável? Se não, <b>onde</b> e <b>por que</b> ela falha, e muda alguma coisa trocar HTTP por MQTT?</p>
+  <div class="grid" style="margin-top:12px">
+    <div class="box"><b>Não é</b> o sistema final. É um experimento para descobrir limitações antes de escolher o stack definitivo
+      do gêmeo digital (atualização horária, offline).</div>
+    <div class="box"><b>Primeiro roda, depois melhora.</b> O ciclo 1 usa o firmware que já existe, sem consertar nada. Cada falha
+      encontrada vira hipótese para o ciclo seguinte.</div>
+    <div class="box"><b>O resultado é uma tabela de números</b> (entrega %, atraso, recuperação), não "funcionou". É essa tabela que
+      decide se o rádio, o transporte e o banco ficam ou mudam.</div>
+  </div>
+  <p class="muted" style="margin-top:12px"><b>Sobre o nome "ponte":</b> é o ESP32 que o código chama de <b>Central</b>
+    (<code>MeuProjetoESP32.ino</code>, <code>EspNowCentral.*</code>). Aqui ele é chamado de ponte porque, nesta branch, só passa as
+    leituras do ESP-NOW para o Wi-Fi.</p>
+
+  <h2 id="comece">Comece aqui</h2>
+  <div class="grid">
+    <div class="box"><b>O que você precisa ter</b>
+      <ul>
+        <li>2 placas ESP32 com cabo USB: uma para o nó (com o sensor de chuva MH-RD) e uma para a ponte.</li>
+        <li>PC Windows com Arduino IDE e Python 3.12.</li>
+        <li>Acesso ao painel do roteador, para trocar o canal e reservar o IP do PC.</li>
+      </ul></div>
+    <div class="box"><b>Como trabalhar cada missão</b>
+      <ul>
+        <li>As missões chegam pelo app Tarefas-build, com a pasta onde vão as entregas.</li>
+        <li>Ao começar, você escreve as etapas no app: é o seu plano de como fazer.</li>
+        <li>Dúvida ou bloqueio: abra uma pendência no app no mesmo dia.</li>
+      </ul></div>
+    <div class="box"><b>Por onde ler</b>
+      <ul>
+        <li>Esta página até "Núcleo × supérfluo".</li>
+        <li>Depois os fluxos em <a href="index.html#edge">index.html</a>, ignorando os blocos cinza tracejados.</li>
+        <li>Termo novo? Está no glossário abaixo.</li>
+      </ul></div>
+  </div>
+  <details class="box" id="glossario" style="margin-top:12px">
+    <summary><b>Glossário</b> <span class="muted">(abra se algum termo for novo)</span></summary>
+    <div class="tablewrap" style="margin-top:10px"><table>
+      <tr><th>Termo</th><th>Significado</th></tr>
+      <tr><td>ESP-NOW</td><td>Rádio da Espressif: um ESP32 manda mensagens curtas (até 250 bytes) direto para outro, sem roteador.</td></tr>
+      <tr><td>Beacon</td><td>Mensagem que a ponte espalha a cada 1,5 s dizendo "estou aqui"; o nó a usa para descobrir o endereço da ponte.</td></tr>
+      <tr><td>Callback</td><td>Função que o sistema chama sozinho quando algo acontece, por exemplo quando chega um pacote.</td></tr>
+      <tr><td>Task</td><td>Tarefa do FreeRTOS: um pedaço do programa que roda em paralelo com o resto, em um dos dois núcleos.</td></tr>
+      <tr><td>Fila (FreeRTOS)</td><td>Caixa de passagem de tamanho fixo entre duas tasks: uma coloca, a outra retira.</td></tr>
+      <tr><td>ACK</td><td>Confirmação: a resposta "recebi" ou "apliquei" que volta para quem enviou.</td></tr>
+      <tr><td>Deep sleep</td><td>Sono profundo: o ESP32 desliga quase tudo e recomeça do <code>setup()</code> ao acordar; só a memória RTC é mantida.</td></tr>
+      <tr><td>Modo ONLINE</td><td>Modo do nó em que ele não dorme e envia no intervalo configurado (usado no cenário de rajada).</td></tr>
+      <tr><td>RSSI</td><td>Força do sinal recebido, em dBm. Quanto mais perto de 0, melhor (−50 é ótimo; −90 é limite).</td></tr>
+      <tr><td><code>seq</code></td><td>Número de sequência: cada leitura leva o número seguinte ao anterior. Número que falta é leitura perdida.</td></tr>
+      <tr><td>p50 / p95</td><td>Mediana e percentil 95: metade dos valores fica abaixo do p50; 95% ficam abaixo do p95.</td></tr>
+      <tr><td>MQTT e QoS 1</td><td>MQTT é um protocolo de mensagens com intermediário (broker; aqui, o Mosquitto). QoS 1 garante entrega pelo menos uma vez.</td></tr>
+      <tr><td>PDCA</td><td>Ciclo de melhoria: planejar, fazer, verificar e agir (padronizar o que funcionou e planejar o próximo ciclo).</td></tr>
+      <tr><td>Relatório A3</td><td>Relatório de uma folha (tamanho A3), do método Toyota: problema, causa, dados e recomendação.</td></tr>
+      <tr><td>Core 0 / core 1</td><td>Os dois núcleos de processamento da CPU do ESP32. Não confundir com "núcleo operacional".</td></tr>
+      <tr><td>Mini PC</td><td>No código, o PC Windows que roda o servidor (<code>MINI_PC_IP</code>, <code>TaskPushMiniPC</code>).</td></tr>
+      <tr><td>Núcleo / supérfluo</td><td>Núcleo operacional é o que a cadeia precisa para funcionar. Supérfluo é o que existe no código mas não serve à prova; fica parado, não é apagado.</td></tr>
+    </table></div>
+  </details>
+
+  <h2 id="cadeia">A cadeia que vamos testar</h2>
+  <p>Cada bloco é uma parte do caminho da leitura; os rótulos H1–H7 nas setas são as <a href="#barreiras">barreiras</a> que suspeitamos.
+    Clique em um bloco para ver o que ele faz.</p>
+  <div class="card"><div class="graph-wrap"><div class="tools"></div><div class="graph" id="g-poc-cadeia" style="height:360px"></div></div>
+    <div class="detail"></div></div>
+
+  <h2 id="nucleo">Núcleo operacional × supérfluo no firmware</h2>
+  <p>O que sustenta a cadeia e o que pode ser ignorado durante a prova. Nada é apagado agora: a limpeza é decidida depois, item a item
+    (<code>STATUS.md</code> §4). A mesma marcação aparece bloco a bloco nos <a href="index.html#edge">fluxos de index.html</a>.</p>
+  <h3>Ponte (Central)</h3>
+  <div class="card"><div class="graph-wrap"><div class="tools"></div><div class="graph" id="g-poc-mapa-ponte" style="height:640px"></div></div>
+    <div class="detail"></div></div>
+  <h3>Nó e resto do repositório</h3>
+  <div class="card"><div class="graph-wrap"><div class="tools"></div><div class="graph" id="g-poc-mapa-no" style="height:760px"></div></div>
+    <div class="detail"></div></div>
+  <div class="callout warn"><b>Regra durante a prova:</b> os blocos supérfluos continuam no código e rodando; eles só não são
+    estudados nem alterados agora. Mudanças vão no núcleo. Se um teste parecer depender de algo supérfluo, abra uma pendência antes de alterar.</div>
+
+  <h2 id="barreiras">Barreiras técnicas (hipóteses a testar)</h2>
+  <p>Cada barreira é algo que o código sugere que vai falhar. A prova confirma ou derruba cada uma com números. As linhas citadas valem para o commit <code>3bde339</code>.</p>
+  <div class="tablewrap"><table>
+    <tr><th>#</th><th>Barreira</th><th>Onde no código</th><th>Efeito esperado</th><th>Cenário</th></tr>
+    <tr id="h1"><td><b>H1</b></td><td>Canal do rádio desencontrado: conectada ao roteador, a ponte passa o ESP-NOW para o canal dele; os nós ficam no canal 1</td><td><code>EspNowCentral.cpp:33-37</code>, <code>EspNowPeriferico.cpp:62</code></td><td>Roteador em outro canal: nenhuma leitura chega, sem erro</td><td><a href="#c5">C5</a></td></tr>
+    <tr id="h2"><td><b>H2</b></td><td>Economia de energia do Wi-Fi: o rádio da ponte cochila entre os sinais do roteador e pode não ouvir o ESP-NOW</td><td>nenhum arquivo chama <code>WiFi.setSleep(false)</code></td><td>Perdas intermitentes que pioram com tráfego</td><td><a href="#c2">C2</a></td></tr>
+    <tr id="h3"><td><b>H3</b></td><td>Fila de 20 que descarta a mais antiga quando enche</td><td><code>MeuProjetoESP32.ino:555</code>, <code>636-643</code></td><td>PC fora do ar por mais de 20 leituras: perda permanente</td><td><a href="#c3">C3</a></td></tr>
+    <tr id="h4"><td><b>H4</b></td><td>HTTP uma leitura por vez, com até 1500 ms de espera cada, sem nova tentativa</td><td><code>MeuProjetoESP32.ino:35</code>, <code>493-525</code></td><td>Com o PC fora, menos de 1 leitura por segundo; a fila enche rápido</td><td><a href="#c3">C3</a></td></tr>
+    <tr id="h5"><td><b>H5</b></td><td>Nó acordado esperando a rede: até 1650 ms por ciclo aguardando configuração</td><td><code>ESP_Periferico_Chuva.ino:217</code></td><td>Gasto de bateria em todo ciclo; configuração atrasada se o PC demorar</td><td><a href="#c1">C1</a>, <a href="#c3">C3</a></td></tr>
+    <tr id="h6"><td><b>H6</b></td><td>Queda e reconexão do Wi-Fi: tentativa a cada 10 s, e a task HTTP descarta a leitura enquanto não há Wi-Fi</td><td><code>WifiManager.cpp:79-91</code>, <code>MeuProjetoESP32.ino:485-488</code></td><td>Leituras perdidas durante a queda; mais perdas se o canal mudar</td><td><a href="#c4">C4</a></td></tr>
+    <tr id="h7"><td><b>H7</b></td><td>Alcance do ESP-NOW com a antena da placa e obstáculos do sítio</td><td>hardware e ambiente</td><td>Define se o ESP-NOW serve para as distâncias do sítio</td><td><a href="#c6">C6</a></td></tr>
+  </table></div>
+
+  <h2 id="medicao">Cenários e métricas</h2>
+  <h3>Matriz de cenários</h3>
+  <div class="tablewrap"><table>
+    <tr><th>#</th><th>Cenário</th><th>Como provocar</th><th>Hipóteses</th><th>Duração</th></tr>
+    <tr id="c1"><td>C1</td><td>Linha de base</td><td>1 nó, leitura a cada 1 min, roteador no canal 1; o servidor envia 5 configurações ao longo da hora</td><td>referência, H5</td><td>60 min</td></tr>
+    <tr id="c2"><td>C2</td><td>Rajada</td><td>intervalo de 5 s (modo ONLINE) com 1–2 nós, com e sem <code>WiFi.setSleep(false)</code> na ponte</td><td>H2</td><td>15 min cada</td></tr>
+    <tr id="c3"><td>C3</td><td>Servidor fora do ar</td><td>fechar o servidor por 10 min com o nó enviando</td><td>H3, H4, H5</td><td>30 min</td></tr>
+    <tr id="c4"><td>C4</td><td>Roteador reiniciado</td><td>desligar o roteador da tomada por 2 min</td><td>H6</td><td>20 min</td></tr>
+    <tr id="c5"><td>C5</td><td>Canal diferente de 1</td><td>pôr o roteador no canal 6 e reiniciar a ponte</td><td>H1</td><td>20 min, 2 vezes</td></tr>
+    <tr id="c6"><td>C6</td><td>Distância</td><td>afastar o nó da ponte em 3 posições (ex.: 10, 30 e 60 m), anotando obstáculos</td><td>H7</td><td>15 min por posição</td></tr>
+  </table></div>
+  <h3>Como cada número é calculado</h3>
+  <div class="tablewrap"><table>
+    <tr><th>Métrica</th><th>Cálculo</th><th>Depende de</th></tr>
+    <tr><td>Entrega %</td><td>números de sequência únicos recebidos ÷ esperados no período</td><td><code>seq</code> no pacote (MS-013)</td></tr>
+    <tr><td>Duplicatas e lacunas</td><td>linhas com o mesmo nó e <code>seq</code>; saltos na sequência</td><td><code>seq</code></td></tr>
+    <tr><td>Atraso na ponte (p50, p95)</td><td>tempo entre a chegada do pacote na ponte e o envio ao PC, pelo relógio da ponte</td><td><code>atraso_fila_ms</code> (MS-013)</td></tr>
+    <tr><td>Descartes da fila</td><td>contador da ponte enviado em cada mensagem</td><td><code>descartes</code> (MS-013)</td></tr>
+    <tr><td>Tempo de recuperação</td><td>do fim da falha até a primeira leitura gravada</td><td>hora anotada e hora do servidor</td></tr>
+    <tr><td>Configuração entregue</td><td>% das configurações enviadas pelo servidor que voltaram com ACK (C1, 5 envios)</td><td>log serial da ponte</td></tr>
+    <tr><td>Tempo acordado do nó</td><td>ms entre acordar e voltar a dormir, por ciclo (média e máximo)</td><td>log serial do nó</td></tr>
+  </table></div>
+  <p class="muted">Os relógios do nó, da ponte e do PC não são sincronizados. Por isso o atraso é medido dentro da ponte e a perda, pela
+    sequência, que não depende de relógio.</p>
+
+  <h2 id="stack">Stack da prova e o que ela vai decidir</h2>
+  <div class="tablewrap"><table>
+    <tr><th>Camada</th><th>Na prova de conceito</th><th>Por que assim</th><th>O que a prova decide</th></tr>
+    <tr><td>Rádio de campo</td><td>ESP-NOW (já existe)</td><td>Já funciona no nó e na ponte; nenhum custo novo</td><td>Se H1, H2 e H7 forem graves: ESP-NOW Long Range ou LoRaWAN no sistema final</td></tr>
+    <tr><td>Firmware</td><td>Arduino IDE (já existe)</td><td>É o que você já domina; mudar agora misturaria duas variáveis</td><td>Se a fila e as tasks forem o gargalo: ESP-IDF no sistema final</td></tr>
+    <tr><td>Transporte ponte → PC</td><td>HTTP (já existe) e depois MQTT</td><td>Comparar os dois com o mesmo pacote</td><td>HTTP ou MQTT no sistema final</td></tr>
+    <tr><td>Receptor</td><td>Python + FastAPI; Mosquitto + script Python</td><td>Texto puro, fácil de editar por IA e de testar pelo terminal</td><td>Se o servidor final continua em Python</td></tr>
+    <tr><td>Banco</td><td>SQLite (um arquivo)</td><td>Sem instalação; basta para poucos nós</td><td>PostgreSQL só se aparecer limite de concorrência ou volume</td></tr>
+    <tr><td>Servidor</td><td>PC Windows na mesma rede</td><td>É o que existe hoje</td><td>Linux + Docker no sistema final</td></tr>
+  </table></div>
+  <div class="callout warn"><b>Fora do escopo desta prova:</b> nuvem e sincronização (antiga MS-009), refatorar a interface
+    <code>web/app.js</code> (antiga MS-008), segurança e criptografia, imagens. Voltam depois que a cadeia estiver medida.</div>
+
+  <h2 id="missoes">Ciclos PDCA e missões</h2>
+  <p>Três ciclos. As folhas das missões (necessidade, requisitos, entrega e critérios) ficam no app Tarefas-build; aqui está a ordem
+    e o papel de cada uma (IDs provisórios até a emissão no app). No encerramento de cada missão vale a pergunta: <i>o que a folha deveria ter dito?</i></p>
+  <div class="legend" aria-label="Legenda das fases do PDCA">
+    <span><i style="background:var(--n-sleep-bg);border-color:var(--n-sleep-bd)"></i>P · planejar</span>
+    <span><i style="background:var(--n-io-bg);border-color:var(--n-io-bd)"></i>D · fazer</span>
+    <span><i style="background:var(--n-dec-bg);border-color:var(--n-dec-bd);border-style:dashed"></i>C · verificar</span>
+    <span><i style="background:var(--n-start-bg);border-color:var(--n-start-bd)"></i>A · agir</span>
+  </div>
+  <div class="card" style="margin-top:10px"><div class="graph-wrap"><div class="tools"></div><div class="graph" id="g-poc-ciclos" style="height:1080px"></div></div>
+    <div class="detail"></div></div>
+
+  <h2 id="mudou">O que mudou em relação ao roteiro anterior</h2>
+  <div class="tablewrap"><table>
+    <tr><th>Antes</th><th>Agora</th><th>Por quê</th></tr>
+    <tr><td>MS-006: ponte com push HTTP</td><td>Mantida (já feita)</td><td>Serve como está para a prova</td></tr>
+    <tr><td>MS-007: backend completo (4 rotas, fila de configurações, inicialização automática)</td><td>MS-011: servidor mínimo que grava tudo, cru</td><td>Para medir, basta registrar; o resto é produto</td></tr>
+    <tr><td>MS-008: refatorar a interface web</td><td>Adiada</td><td>Não ajuda a descobrir limitações da cadeia</td></tr>
+    <tr><td>MS-009: sincronização com a nuvem</td><td>Adiada</td><td>Outro problema; depende do resultado desta prova</td></tr>
+    <tr><td>Critério "funcionou"</td><td>Métricas por cenário e hipóteses confirmadas ou refutadas</td><td>"Funcionou" não revela limitação; número revela</td></tr>
+    <tr><td>Pacote sem número de sequência</td><td>MS-013 acrescenta <code>seq</code></td><td>Sem ele é impossível contar perdas</td></tr>
+    <tr><td>Só HTTP</td><td>HTTP e depois MQTT (MS-015)</td><td>Comparar transporte com o mesmo pacote</td></tr>
+  </table></div>
+</main>
+
+<footer>Grafos lidos de <code>data/firmwares.json</code> (os que têm <code>"page": "poc"</code>). Referências <code>arquivo:linha</code>:
+  branch <code>com-mini-pc</code>, commit <code>3bde339</code>. <span id="src"></span></footer>
+
+<script src="vendor/vis-network.min.js"></script>
+<script src="data/firmwares.js"></script>
+<script src="visualizador.js"></script>
+</body>
+</html>

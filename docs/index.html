@@ -4,85 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Firmwares do Sítio Online</title>
-<style>
-  :root {
-    --bg: #f6f7f4;
-    --surface: #ffffff;
-    --text: #1d2420;
-    --muted: #5d6a62;
-    --line: #d5dbd4;
-    --accent: #2f6f4e;
-    --n-start-bg: #cfe8d8;   --n-start-bd: #2f6f4e;
-    --n-step-bg: #ffffff;    --n-step-bd: #6b7a70;
-    --n-dec-bg: #fff3cf;     --n-dec-bd: #a67c00;
-    --n-sleep-bg: #d6e4f7;   --n-sleep-bd: #2c5d9c;
-    --n-io-bg: #fbdcc8;      --n-io-bd: #b4551c;
-    --n-sub-bg: #e6dcf3;     --n-sub-bd: #6b4a9c;
-    --edge: #6b7a70;
-    --node-text: #1d2420;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
-      --bg: #141815; --surface: #1c221e; --text: #e6ebe7; --muted: #9aa89f; --line: #2f3832;
-      --accent: #6fcf9a;
-      --n-start-bg: #1f4a33; --n-start-bd: #6fcf9a;
-      --n-step-bg: #232b26;  --n-step-bd: #7d8c82;
-      --n-dec-bg: #4a3d12;   --n-dec-bd: #e0b84a;
-      --n-sleep-bg: #1d3556; --n-sleep-bd: #7fb0ee;
-      --n-io-bg: #532a12;    --n-io-bd: #f0a070;
-      --n-sub-bg: #35264f;   --n-sub-bd: #b79be0;
-      --edge: #8a998f; --node-text: #e6ebe7;
-    }
-  }
-  :root[data-theme="dark"] {
-    --bg: #141815; --surface: #1c221e; --text: #e6ebe7; --muted: #9aa89f; --line: #2f3832;
-    --accent: #6fcf9a;
-    --n-start-bg: #1f4a33; --n-start-bd: #6fcf9a;
-    --n-step-bg: #232b26;  --n-step-bd: #7d8c82;
-    --n-dec-bg: #4a3d12;   --n-dec-bd: #e0b84a;
-    --n-sleep-bg: #1d3556; --n-sleep-bd: #7fb0ee;
-    --n-io-bg: #532a12;    --n-io-bd: #f0a070;
-    --n-sub-bg: #35264f;   --n-sub-bd: #b79be0;
-    --edge: #8a998f; --node-text: #e6ebe7;
-  }
-  * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--text);
-         font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-  header, main { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
-  header { padding-top: 28px; }
-  h1 { font-size: 1.6rem; margin: 0 0 4px; }
-  h2 { font-size: 1.3rem; margin: 48px 0 6px; padding-top: 12px; border-top: 1px solid var(--line); }
-  h3 { font-size: 1.05rem; margin: 28px 0 4px; }
-  p { margin: 6px 0; }
-  .muted { color: var(--muted); }
-  nav { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 0; }
-  nav a { color: var(--accent); text-decoration: none; border: 1px solid var(--line);
-          background: var(--surface); padding: 4px 12px; border-radius: 999px; font-size: .9rem; }
-  nav a:hover { border-color: var(--accent); }
-  code { overflow-wrap: anywhere; font: .88em ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--surface);
-         border: 1px solid var(--line); padding: 0 4px; border-radius: 4px; }
-  .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 14px 0 0; font-size: .85rem; color: var(--muted); }
-  .legend i { display: inline-block; width: 14px; height: 14px; border-radius: 3px; vertical-align: -2px;
-              margin-right: 5px; border: 2px solid; }
-  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
-  .graph-wrap { position: relative; }
-  .graph { width: 100%; height: 520px; }
-  .tools { position: absolute; top: 8px; right: 8px; display: flex; gap: 4px; z-index: 2; }
-  .tools button { width: 32px; height: 32px; border: 1px solid var(--line); background: var(--surface);
-                  color: var(--text); border-radius: 6px; font-size: 16px; cursor: pointer; }
-  .tools button:hover { border-color: var(--accent); }
-  .detail { border-top: 1px solid var(--line); padding: 10px 14px; min-height: 64px; font-size: .93rem; }
-  .detail b { color: var(--accent); }
-  .detail .hint { color: var(--muted); }
-  table { width: 100%; border-collapse: collapse; font-size: .9rem; margin: 8px 0; }
-  th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
-  th { color: var(--muted); font-weight: 600; }
-  .tablewrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
-  ul.notes { padding-left: 20px; }
-  ul.notes li { margin: 6px 0; }
-  footer { max-width: 1100px; margin: 40px auto; padding: 0 16px; color: var(--muted); font-size: .85rem; }
-  noscript { display: block; padding: 12px; background: var(--n-dec-bg); border-radius: 8px; }
-</style>
+<link rel="stylesheet" href="visualizador.css">
 </head>
 <body>
 <header>
@@ -93,9 +15,14 @@
     <a href="#proposta">Hoje × proposta</a>
     <a href="#topologia">Topologia</a>
     <a href="#edge">Nó edge (bateria)</a>
-    <a href="#gateway">Gateway (Central)</a>
+    <a href="#gateway">Ponte (Central)</a>
     <a href="#obs">Observações</a>
+    <a href="index-poc.html"><b>Prova de conceito →</b></a>
   </nav>
+  <div class="callout"><b>Branch <code>com-mini-pc</code>.</b> Os fluxos do nó e do Central abaixo mostram o código desta branch, em que o
+    Central não tem mais servidor web e envia cada leitura ao PC por HTTP. Os blocos estão marcados como <b>núcleo operacional</b> (borda grossa) ou
+    <b>supérfluo</b> para a prova de conceito (cinza tracejado). "Ponte" é o nome que a prova dá ao Central. O plano de trabalho (barreiras, cenários e missões MS-010 a MS-016) está em
+    <a href="index-poc.html">index-poc.html</a>.</div>
   <div class="legend" aria-label="Legenda">
     <span><i style="background:var(--n-start-bg);border-color:var(--n-start-bd)"></i>início</span>
     <span><i style="background:var(--n-step-bg);border-color:var(--n-step-bd)"></i>passo</span>
@@ -104,15 +31,21 @@
     <span><i style="background:var(--n-sleep-bg);border-color:var(--n-sleep-bd)"></i>sono</span>
     <span><i style="background:var(--n-sub-bg);border-color:var(--n-sub-bd)"></i>callback / API</span>
   </div>
+  <div class="legend" aria-label="Legenda do papel na prova de conceito">
+    <span><i class="nucleo"></i><b>núcleo operacional</b>: sem ele a cadeia nó → ponte → servidor não funciona</span>
+    <span><i class="superfluo"></i><b>supérfluo</b> para a prova de conceito: pode ser ignorado agora</span>
+  </div>
   <noscript>Os grafos precisam de JavaScript.</noscript>
 </header>
 
 <main>
   <h2 id="inicio">Visão geral do projeto</h2>
-  <p>O núcleo é o firmware (laranja): protocolo, Central e nós. A governança são 3 arquivos na raiz: <code>AGENTS.md</code> (regras), <code>STATUS.md</code> (estado, proposta P1–P5 e limpeza) e <code>CHANGELOG.md</code> (o que mudou e como foi testado).</p>
+  <p>A base é o firmware (laranja): protocolo, Central e nós. A governança são 3 arquivos na raiz: <code>AGENTS.md</code> (regras), <code>STATUS.md</code> (estado, proposta P1–P5 e limpeza) e <code>CHANGELOG.md</code> (o que mudou e como foi testado).</p>
   <div class="card"><div class="graph-wrap"><div class="tools"></div><div class="graph" id="g-avaliacao" style="height:600px"></div></div>
     <div class="detail"></div></div>
   <h2 id="proposta">Hoje × proposta de melhoria</h2>
+  <p class="callout warn">Esta seção foi escrita para a <code>main</code> (Central com servidor web e interface em <code>web/</code>).
+    Nesta branch, as melhorias P1–P5 entram como barreiras a medir na <a href="index-poc.html">prova de conceito</a>.</p>
   <p>O mesmo uso do sistema, antes e depois. As melhorias vêm dos riscos de <code>docs/recomendacoes-firmware.md</code> e estão priorizadas no <code>STATUS.md</code>.</p>
   <div class="tablewrap"><table>
     <tr><th>#</th><th>Hoje</th><th>Proposta</th><th>Efeito para o usuário</th></tr>
@@ -169,8 +102,9 @@
   <div class="card"><div class="graph-wrap"><div class="tools"></div><div class="graph" id="g-edge-cfg" style="height:520px"></div></div>
     <div class="detail"></div></div>
 
-  <h2 id="gateway">Gateway — Central (<code>MeuProjetoESP32.ino</code>)</h2>
-  <p>Fica sempre ligado: ESP-NOW para os nós, Wi-Fi (ou ponto de acesso próprio) e servidor HTTP na porta 80 com API REST.</p>
+  <h2 id="gateway">Ponte (Central) — <code>MeuProjetoESP32.ino</code></h2>
+  <p>Fica sempre ligado. Nesta branch faz só duas coisas: coordena o rádio ESP-NOW com os nós e envia cada leitura ao PC por
+    HTTP POST (push). Não serve mais páginas nem a API REST; por isso a interface de <code>web/</code> não funciona com ela.</p>
 
   <h3>1. Inicialização</h3>
   <div class="card"><div class="graph-wrap"><div class="tools"></div><div class="graph" id="g-gw-setup" style="height:640px"></div></div>
@@ -184,216 +118,27 @@
   <div class="card"><div class="graph-wrap"><div class="tools"></div><div class="graph" id="g-gw-cb" style="height:560px"></div></div>
     <div class="detail"></div></div>
 
-  <h3>4. API REST</h3>
-  <div class="card"><div class="graph-wrap"><div class="tools"></div><div class="graph" id="g-gw-api" style="height:520px"></div></div>
+  <h3>4. Envio ao PC (task HTTP no core 1)</h3>
+  <div class="card"><div class="graph-wrap"><div class="tools"></div><div class="graph" id="g-gw-push" style="height:760px"></div></div>
     <div class="detail"></div></div>
 
   <section id="extras"></section>
 
   <h2 id="obs">Observações sobre o estado atual</h2>
   <ul class="notes">
-    <li><b>Sem gestão de energia solar no gateway.</b> Ele roda sempre ligado (Wi-Fi/AP, WebServer e beacon a cada 1,5 s), sem leitura de tensão de bateria ou painel e sem política de sono.</li>
-    <li><b>Janela de recepção é só informativa.</b> Os 10 s de cada 60 s aparecem em <code>/api/status</code>, mas o rádio do Central nunca é desligado fora dela.</li>
+    <li><b>Sem gestão de energia solar no gateway.</b> Ele roda sempre ligado (Wi-Fi e beacon a cada 1,5 s), sem leitura de tensão de bateria ou painel e sem política de sono.</li>
+    <li><b>Interface <code>web/</code> sem servidor nesta branch.</b> Ela consulta <code>/api/status</code> no Central, e a <code>com-mini-pc</code> não tem mais servidor web. O receptor no PC ainda não existe (é a MS-011).</li>
+    <li><b>Leituras podem se perder sem aviso.</b> A fila de 20 descarta a mais antiga quando enche, e a task HTTP descarta a leitura que falhou ou que chegou com o Wi-Fi fora (barreiras H3, H4 e H6 da prova de conceito).</li>
     <li><b>Bateria e temperatura simuladas nos nós.</b> <code>lerBateria()</code> devolve 3980 mV fixo e a temperatura é constante (25,0 e 24,8).</li>
     <li><b>Código duplicado.</b> <code>EspNowPeriferico</code> e <code>ProtocoloMensagens.h</code> existem em três cópias (raiz, <code>Base</code> e <code>Chuva</code>).</li>
     <li><b><code>secrets.h</code></b> não está no repositório; copie <code>secrets.example.h</code> antes de compilar o Central.</li>
   </ul>
 </main>
 
-<footer>Grafos lidos de <code>data/firmwares.json</code>. As referências <code>arquivo:linha</code> valem para o commit <code>eb8cf9a</code> da <code>main</code>. <span id="src"></span></footer>
+<footer>Grafos lidos de <code>data/firmwares.json</code>. As referências <code>arquivo:linha</code> dos fluxos do nó e do Central valem para a branch <code>com-mini-pc</code> (commit <code>3bde339</code>); a visão geral e a seção "Hoje × proposta" foram escritas para o commit <code>eb8cf9a</code> da <code>main</code>. <span id="src"></span></footer>
 
 <script src="vendor/vis-network.min.js"></script>
 <script src="data/firmwares.js"></script>
-<script>
-(function () {
-  "use strict";
-
-  // ---------------------------------------------------------------------
-  // Dados dos grafos.  nó: [id, tipo, rótulo, detalhe]   aresta: [de, para, rótulo, "back"?]
-  // ---------------------------------------------------------------------
-  var E_BOOT = "esp_periferico_*.ino";
-  var GRAPHS = {};
-
-  // ---------------------------------------------------------------------
-  // Renderização
-  // ---------------------------------------------------------------------
-  var KIND = {
-    start: { bg: "--n-start-bg", bd: "--n-start-bd", shape: "box", dashes: false, bold: true },
-    step:  { bg: "--n-step-bg",  bd: "--n-step-bd",  shape: "box", dashes: false },
-    dec:   { bg: "--n-dec-bg",   bd: "--n-dec-bd",   shape: "box", dashes: [6, 4] },
-    io:    { bg: "--n-io-bg",    bd: "--n-io-bd",    shape: "box", dashes: false },
-    sleep: { bg: "--n-sleep-bg", bd: "--n-sleep-bd", shape: "box", dashes: false },
-    sub:   { bg: "--n-sub-bg",   bd: "--n-sub-bd",   shape: "box", dashes: false }
-  };
-  var KIND_NAME = { start: "início", step: "passo", dec: "decisão", io: "rádio / sensor", sleep: "sono", sub: "callback / API" };
-
-  var instances = [];
-
-  function css(name) {
-    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-  }
-
-  function esc(s) {
-    return String(s).replace(/[&<>"]/g, function (c) {
-      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
-    });
-  }
-
-  // Níveis por caminho mais longo, ignorando arestas "back" (ciclos).
-  function levels(def) {
-    var lv = {};
-    def.nodes.forEach(function (n) { lv[n[0]] = 0; });
-    var fwd = def.edges.filter(function (e) { return e[3] !== "back"; });
-    for (var pass = 0; pass < def.nodes.length; pass++) {
-      var changed = false;
-      fwd.forEach(function (e) {
-        if (lv[e[1]] < lv[e[0]] + 1) { lv[e[1]] = lv[e[0]] + 1; changed = true; }
-      });
-      if (!changed) break;
-    }
-    return lv;
-  }
-
-  function build(id) {
-    var def = GRAPHS[id];
-    var lv = levels(def);
-    var nodes = def.nodes.map(function (n) {
-      var k = KIND[n[1]];
-      return {
-        id: n[0], label: n[2], shape: k.shape, level: lv[n[0]],
-        color: { background: css(k.bg), border: css(k.bd), highlight: { background: css(k.bg), border: css("--accent") } },
-        borderWidth: 2, borderWidthSelected: 3,
-        shapeProperties: { borderDashes: k.dashes, borderRadius: 8 },
-        font: { color: css("--node-text"), size: 14, face: "system-ui, sans-serif", bold: k.bold ? "bold" : undefined },
-        margin: 10, widthConstraint: { maximum: 260 }
-      };
-    });
-    var edges = def.edges.map(function (e, i) {
-      var back = e[3] === "back";
-      return {
-        id: "e" + i, from: e[0], to: e[1], label: e[2] || undefined,
-        arrows: e[3] === "both" ? "to, from" : "to", dashes: back,
-        color: { color: css("--edge"), highlight: css("--accent") },
-        font: { color: css("--muted"), size: 12, strokeWidth: 4, strokeColor: css("--surface"), align: "horizontal" },
-        smooth: back ? { type: "curvedCW", roundness: 0.35 } : { type: "cubicBezier", roundness: 0.5 }
-      };
-    });
-    return { nodes: new vis.DataSet(nodes), edges: new vis.DataSet(edges) };
-  }
-
-  function options(def) {
-    return {
-      layout: { hierarchical: { enabled: true, direction: def.dir, sortMethod: "directed",
-                                levelSeparation: def.dir === "LR" ? 360 : 95, nodeSpacing: def.dir === "LR" ? 110 : 280,
-                                treeSpacing: 260, shakeTowards: "roots" } },
-      physics: { enabled: false },
-      interaction: { dragView: false, zoomView: false, hover: true, tooltipDelay: 150 },
-      nodes: { chosen: true }
-    };
-  }
-
-  function showDetail(box, def, nodeId) {
-    if (!nodeId) {
-      box.innerHTML = '<span class="hint">Clique em um bloco para ver detalhes.' + (def.extra ? "<br>" + esc(def.extra) : "") + "</span>";
-      return;
-    }
-    var n = def.nodes.filter(function (x) { return x[0] === nodeId; })[0];
-    var label = n[2].replace(/\n/g, " ");
-    box.innerHTML = "<b>" + esc(label) + '</b> <span class="hint">(' + KIND_NAME[n[1]] + ")</span><br>" +
-                    (n[3] ? esc(n[3]) : '<span class="hint">Sem detalhes adicionais.</span>');
-  }
-
-  function mount(id) {
-    var el = document.getElementById(id);
-    var card = el.closest(".card");
-    var box = card.querySelector(".detail");
-    var tools = card.querySelector(".tools");
-    var def = GRAPHS[id];
-    var data = build(id);
-    var network = new vis.Network(el, data, options(def));
-    showDetail(box, def, null);
-
-    network.on("click", function (p) { showDetail(box, def, p.nodes.length ? p.nodes[0] : null); });
-    network.once("afterDrawing", function () { network.fit({ animation: false }); });
-
-    function zoom(f) {
-      network.moveTo({ scale: network.getScale() * f, animation: { duration: 150, easingFunction: "easeInOutQuad" } });
-    }
-    [["+", "Aproximar", function () { zoom(1.25); }],
-     ["−", "Afastar", function () { zoom(0.8); }],
-     ["⤢", "Ajustar à tela", function () { network.fit({ animation: { duration: 200 } }); }]
-    ].forEach(function (b) {
-      var btn = document.createElement("button");
-      btn.type = "button"; btn.textContent = b[0]; btn.title = b[1]; btn.setAttribute("aria-label", b[1]);
-      btn.addEventListener("click", b[2]);
-      tools.appendChild(btn);
-    });
-
-    instances.push({ id: id, network: network, el: el, box: box, def: def });
-  }
-
-  function recolor() {
-    instances.forEach(function (inst) {
-      var data = build(inst.id);
-      inst.network.setData(data);
-      inst.network.once("afterDrawing", function () { inst.network.fit({ animation: false }); });
-    });
-  }
-
-  if (typeof vis === "undefined") {
-    document.querySelector("header").insertAdjacentHTML("beforeend",
-      '<p class="detail">Não foi possível carregar vendor/vis-network.min.js. Abra esta página a partir da pasta docs/ do repositório.</p>');
-    return;
-  }
-
-  function normalize(data) {
-    var out = {};
-    Object.keys(data.graphs).forEach(function (id) {
-      var g = data.graphs[id];
-      out[id] = {
-        title: g.title || id, dir: g.direction || "UD", extra: g.note || "",
-        nodes: g.nodes.map(function (n) { return [n.id, n.kind, n.label, n.detail || ""]; }),
-        edges: g.edges.map(function (e) { return [e.from, e.to, e.label || "", e.style || ""]; })
-      };
-    });
-    return out;
-  }
-
-  function ensureContainers() {
-    var extras = document.getElementById("extras");
-    Object.keys(GRAPHS).forEach(function (id) {
-      if (document.getElementById(id)) return;
-      if (!extras.firstChild) extras.insertAdjacentHTML("beforeend", '<h2>Outros grafos</h2>');
-      extras.insertAdjacentHTML("beforeend",
-        "<h3>" + esc(GRAPHS[id].title) + '</h3><div class="card"><div class="graph-wrap"><div class="tools"></div>' +
-        '<div class="graph" id="' + esc(id) + '" style="height:560px"></div></div><div class="detail"></div></div>');
-    });
-  }
-
-  function start(data, origin) {
-    GRAPHS = normalize(data);
-    ensureContainers();
-    Object.keys(GRAPHS).forEach(mount);
-    document.getElementById("src").textContent =
-      origin === "json" ? "" : "(carregado de data/firmwares.js, a cópia gerada; rode tools/gen_firmwares_js.mjs após editar o JSON)";
-  }
-
-  fetch("data/firmwares.json", { cache: "no-store" })
-    .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
-    .then(function (d) { start(d, "json"); })
-    .catch(function () {
-      // Aberto direto do disco (file://) o navegador bloqueia o fetch: usa a cópia gerada.
-      if (window.FIRMWARE_GRAPHS) start(window.FIRMWARE_GRAPHS, "js");
-      else document.querySelector("header").insertAdjacentHTML("beforeend",
-        '<p class="detail">Não foi possível carregar data/firmwares.json nem data/firmwares.js.</p>');
-    });
-
-  var mq = window.matchMedia("(prefers-color-scheme: dark)");
-  if (mq.addEventListener) mq.addEventListener("change", recolor);
-  window.addEventListener("resize", function () {
-    instances.forEach(function (i) { i.network.redraw(); });
-  });
-})();
-</script>
+<script src="visualizador.js"></script>
 </body>
 </html>
